@@ -365,19 +365,19 @@ export default function PhotoLightboxModal({
         fullScreen={isMobile}
         maxWidth={false}
         PaperProps={{
-          className: `overflow-hidden ${isMobile ? '' : '!m-4 h-[92vh] w-[min(1280px,96vw)] !max-w-none !rounded-2xl'}`,
+          className: `overflow-hidden ${isMobile ? '!rounded-none' : '!m-4 h-[92dvh] w-[min(1280px,96vw)] !max-w-none !rounded-2xl'}`,
         }}
       >
-        <div className="flex h-full flex-col md:flex-row">
+        <div className="flex h-full min-h-0 flex-col md:flex-row">
           {/* ---------- Area gambar ---------- */}
-          <div className="relative flex min-h-[45vh] flex-1 items-center justify-center bg-black md:min-h-0">
+          <div className="relative flex min-h-[42dvh] flex-1 items-center justify-center bg-black md:min-h-0">
             {photo?.url && (
               <img
                 key={photo.id}
                 src={getOptimizedImageUrl(photo.url, { width: 1600, crop: 'limit' })}
                 alt={photo.caption}
                 onLoad={() => setImgLoaded(true)}
-                className={`max-h-[55vh] w-auto max-w-full object-contain transition-opacity duration-300 md:max-h-full ${
+                className={`max-h-[48dvh] w-auto max-w-full object-contain transition-opacity duration-300 md:max-h-full ${
                   imgLoaded ? 'opacity-100' : 'opacity-40'
                 }`}
               />
@@ -388,7 +388,7 @@ export default function PhotoLightboxModal({
 
             <IconButton
               onClick={onClose}
-              className="!absolute left-3 top-3 !bg-black/50 !text-white hover:!bg-black/70"
+              className="!absolute left-3 top-3 !min-h-[44px] !min-w-[44px] !bg-black/50 !text-white hover:!bg-black/70"
               aria-label="Tutup"
             >
               <CloseRoundedIcon />
@@ -397,7 +397,7 @@ export default function PhotoLightboxModal({
             {prevPhoto && (
               <IconButton
                 onClick={() => onNavigate?.(prevPhoto.id)}
-                className="!absolute left-3 top-1/2 -translate-y-1/2 !bg-black/50 !text-white hover:!bg-black/70"
+                className="!absolute left-3 top-1/2 -translate-y-1/2 !min-h-[44px] !min-w-[44px] !bg-black/50 !text-white hover:!bg-black/70"
                 aria-label="Sebelumnya"
               >
                 <ChevronLeftRoundedIcon fontSize="large" />
@@ -406,7 +406,7 @@ export default function PhotoLightboxModal({
             {nextPhoto && (
               <IconButton
                 onClick={() => onNavigate?.(nextPhoto.id)}
-                className="!absolute right-3 top-1/2 -translate-y-1/2 !bg-black/50 !text-white hover:!bg-black/70"
+                className="!absolute right-3 top-1/2 -translate-y-1/2 !min-h-[44px] !min-w-[44px] !bg-black/50 !text-white hover:!bg-black/70"
                 aria-label="Berikutnya"
               >
                 <ChevronRightRoundedIcon fontSize="large" />
@@ -421,7 +421,7 @@ export default function PhotoLightboxModal({
           </div>
 
           {/* ---------- Panel info & komentar ---------- */}
-          <aside className="flex w-full flex-col bg-white md:w-[400px] md:shrink-0 dark:bg-navy-800">
+          <aside className="flex w-full flex-1 min-h-0 flex-col bg-white md:flex-initial md:w-[400px] md:shrink-0 dark:bg-navy-800">
             {error && !photo ? (
               <div className="p-6 text-center text-sm text-red-600">{error}</div>
             ) : (
@@ -483,9 +483,14 @@ export default function PhotoLightboxModal({
                     </div>
                   )}
 
-                  <p className="m-0 whitespace-pre-line text-[15px] leading-relaxed">
-                    {photo?.caption || <Skeleton count={2} />}
-                  </p>
+                  <div className="m-0 whitespace-pre-line text-[15px] leading-relaxed">
+                    {photo?.caption || (
+                      <>
+                        <Skeleton variant="text" />
+                        <Skeleton variant="text" width="75%" />
+                      </>
+                    )}
+                  </div>
 
                   {tags.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-1.5">

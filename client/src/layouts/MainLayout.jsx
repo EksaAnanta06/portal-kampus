@@ -237,10 +237,10 @@ export default function MainLayout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-navy">
+    <div className="flex min-h-dvh overflow-x-clip bg-slate-50 dark:bg-navy">
       {/* 1. SIDEBAR DESKTOP (Dashboard Sidebar) */}
       <aside className="hidden w-72 shrink-0 border-0 border-r border-slate-200/90 bg-white lg:block dark:border-slate-800 dark:bg-navy-800">
-        <div className="sticky top-0 h-screen overflow-y-auto">
+        <div className="sticky top-0 h-dvh overflow-y-auto">
           {renderSidebar(null)}
         </div>
       </aside>
@@ -263,17 +263,17 @@ export default function MainLayout() {
       </Drawer>
 
       {/* 3. MAIN DASHBOARD CONTENT AREA */}
-      <div className="flex flex-1 flex-col min-w-0 pb-16 lg:pb-0">
+      <div className="flex flex-1 flex-col min-w-0">
         {/* Top Header Bar */}
         <AppBar
           position="sticky"
           color="inherit"
           elevation={0}
-          className="!border-b !border-slate-200/90 !bg-white/95 backdrop-blur-md dark:!border-slate-800 dark:!bg-navy-800/95 z-10"
+          className="!border-b !border-slate-200/90 !bg-white/95 backdrop-blur-md dark:!border-slate-800 dark:!bg-navy-800/95 z-20"
         >
           <Toolbar className="gap-2 px-3 sm:px-6 !min-h-[58px] sm:!min-h-[64px]">
             <IconButton
-              className="lg:!hidden !p-1.5"
+              className="lg:!hidden !min-h-[44px] !min-w-[44px]"
               edge="start"
               onClick={() => setMobileOpen(true)}
               aria-label="Buka Menu"
@@ -384,69 +384,85 @@ export default function MainLayout() {
         </AppBar>
 
         {/* Dashboard Main View */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-24 lg:pb-8 w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-8 w-full max-w-full overflow-x-hidden">
           <div className="mx-auto max-w-7xl w-full min-w-0">
             <Outlet />
           </div>
         </main>
 
         {/* 4. MOBILE BOTTOM NAVIGATION (Khusus Tampilan Smartphone) */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-lg px-2 py-1.5 dark:border-slate-800 dark:bg-navy-800/95 shadow-lg">
-          <div className="flex items-center justify-around">
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-slate-200 bg-white/95 backdrop-blur-lg px-1.5 sm:px-2 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] dark:border-slate-800 dark:bg-navy-800/95 shadow-lg">
+          <div className="flex items-center justify-around gap-0.5">
             <NavLink
               to="/"
               end
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                   isActive
                     ? 'text-pasim dark:text-pasim-300'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`
               }
             >
-              <DashboardRoundedIcon sx={{ fontSize: 22 }} />
+              <DashboardRoundedIcon sx={{ fontSize: 20 }} />
               <span>Beranda</span>
             </NavLink>
 
             <NavLink
               to="/angkatan"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                   isActive
                     ? 'text-pasim dark:text-pasim-300'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`
               }
             >
-              <CollectionsBookmarkRoundedIcon sx={{ fontSize: 22 }} />
+              <CollectionsBookmarkRoundedIcon sx={{ fontSize: 20 }} />
               <span>Galeri</span>
             </NavLink>
+
+            {isLoggedIn && (
+              <NavLink
+                to="/akademik/materi"
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
+                    isActive
+                      ? 'text-pasim dark:text-pasim-300'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`
+                }
+              >
+                <MenuBookRoundedIcon sx={{ fontSize: 20 }} />
+                <span>Materi</span>
+              </NavLink>
+            )}
 
             <NavLink
               to="/pengumuman"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                   isActive
                     ? 'text-pasim dark:text-pasim-300'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`
               }
             >
-              <CampaignRoundedIcon sx={{ fontSize: 22 }} />
+              <CampaignRoundedIcon sx={{ fontSize: 20 }} />
               <span>Warta</span>
             </NavLink>
 
             <NavLink
               to="/agenda"
               className={({ isActive }) =>
-                `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                   isActive
                     ? 'text-pasim dark:text-pasim-300'
                     : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                 }`
               }
             >
-              <EventAvailableRoundedIcon sx={{ fontSize: 22 }} />
+              <EventAvailableRoundedIcon sx={{ fontSize: 20 }} />
               <span>Agenda</span>
             </NavLink>
 
@@ -454,28 +470,28 @@ export default function MainLayout() {
               <NavLink
                 to="/direktori"
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                  `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                     isActive
                       ? 'text-pasim dark:text-pasim-300'
                       : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }
               >
-                <GroupsRoundedIcon sx={{ fontSize: 22 }} />
+                <GroupsRoundedIcon sx={{ fontSize: 20 }} />
                 <span>Direktori</span>
               </NavLink>
             ) : (
               <NavLink
                 to="/login"
                 className={({ isActive }) =>
-                  `flex flex-col items-center gap-0.5 text-[10px] font-bold py-1 px-2 rounded-lg transition ${
+                  `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                     isActive
                       ? 'text-pasim dark:text-pasim-300'
                       : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }
               >
-                <LoginRoundedIcon sx={{ fontSize: 22 }} />
+                <LoginRoundedIcon sx={{ fontSize: 20 }} />
                 <span>Masuk</span>
               </NavLink>
             )}

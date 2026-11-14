@@ -325,7 +325,13 @@ export default function ManageCampusInfoPage() {
       </div>
 
       <div className="border-b border-slate-200 dark:border-slate-800">
-        <Tabs value={activeTab} onChange={(_e, val) => setActiveTab(val)}>
+        <Tabs
+          value={activeTab}
+          onChange={(_e, val) => setActiveTab(val)}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
+        >
           <Tab value="announcements" label={`Pengumuman Kampus (${announcements.length})`} />
           <Tab value="events" label={`Agenda & Kegiatan (${events.length})`} />
         </Tabs>

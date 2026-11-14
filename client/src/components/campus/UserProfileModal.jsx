@@ -73,7 +73,7 @@ export default function UserProfileModal({ open, userId, onClose, onSelectPhoto 
       maxWidth="sm"
       fullScreen={isMobile}
       PaperProps={{
-        className: '!rounded-2xl overflow-hidden max-h-[92vh]',
+        className: '!rounded-none sm:!rounded-2xl overflow-hidden sm:max-h-[92dvh]',
       }}
     >
       <DialogTitle className="flex items-center justify-between !py-3 !px-4 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
@@ -83,7 +83,12 @@ export default function UserProfileModal({ open, userId, onClose, onSelectPhoto 
             Profil Sivitas Akademika
           </span>
         </div>
-        <IconButton size="small" onClick={onClose}>
+        <IconButton
+          size="small"
+          aria-label="Tutup"
+          className="!min-h-[40px] !min-w-[40px]"
+          onClick={onClose}
+        >
           <CloseRoundedIcon fontSize="small" />
         </IconButton>
       </DialogTitle>
@@ -287,7 +292,7 @@ export default function UserProfileModal({ open, userId, onClose, onSelectPhoto 
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted text-xs text-center py-4 bg-slate-50 dark:bg-slate-850 rounded-xl m-0 border border-slate-100 dark:border-slate-800">
+                  <p className="text-muted text-xs text-center py-4 bg-slate-50 dark:bg-slate-800 rounded-xl m-0 border border-slate-100 dark:border-slate-800">
                     Pengguna ini belum mengunggah foto ke galeri kampus.
                   </p>
                 )}

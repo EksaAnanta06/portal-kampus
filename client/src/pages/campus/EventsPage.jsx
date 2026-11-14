@@ -124,7 +124,8 @@ export default function EventsPage() {
               <div key={i} className="card-surface p-4 sm:p-6 space-y-3">
                 <Skeleton width="30%" />
                 <Skeleton height={28} />
-                <Skeleton count={2} />
+                <Skeleton width="90%" />
+                <Skeleton width="65%" />
               </div>
             ))}
           </div>

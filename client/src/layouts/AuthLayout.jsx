@@ -7,7 +7,7 @@ import { CAMPUS_INFO } from '../utils/constants';
 
 export default function AuthLayout() {
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
+    <div className="flex min-h-dvh bg-slate-50 dark:bg-slate-950">
       {/* Kolom kiri: Hero visual (desktop) dengan latar foto kampus PASIM & Glassmorphism Card */}
       <div className="relative hidden w-1/2 overflow-hidden bg-slate-950 p-10 xl:p-12 text-white lg:flex lg:flex-col lg:justify-between">
         {/* Background Foto Gedung Kampus PASIM HD */}
@@ -68,7 +68,7 @@ export default function AuthLayout() {
       </div>
 
       {/* Kolom kanan: Form Login (dilengkapi background foto kampus & gradient halus di mobile) */}
-      <div className="relative flex flex-1 flex-col min-h-screen overflow-hidden">
+      <div className="relative flex flex-1 flex-col min-h-dvh overflow-hidden">
         {/* Background Foto Gedung Kampus PASIM di Mobile */}
         <div className="absolute inset-0 z-0 lg:hidden pointer-events-none overflow-hidden">
           <img

@@ -125,7 +125,7 @@ export default function AdminLayout() {
   );
 
   return (
-    <div className="flex min-h-screen bg-slate-100 dark:bg-navy">
+    <div className="flex min-h-dvh overflow-x-clip bg-slate-100 dark:bg-navy">
       {/* Sidebar desktop */}
       <aside className="hidden w-72 shrink-0 border-0 border-r border-slate-200 bg-white lg:block dark:border-slate-800 dark:bg-navy-800">
         {renderSidebar(null)}
@@ -148,10 +148,10 @@ export default function AdminLayout() {
         {renderSidebar(() => setMobileOpen(false))}
       </Drawer>
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex flex-1 flex-col min-w-0">
         <AppBar position="sticky" color="inherit" elevation={0} className="!border-b !border-slate-200 !bg-white/95 backdrop-blur-md dark:!border-slate-800 dark:!bg-navy-800/95">
           <Toolbar className="gap-2 px-3 sm:px-6 !min-h-[58px] sm:!min-h-[64px]">
-            <IconButton className="lg:!hidden !p-1.5" edge="start" onClick={() => setMobileOpen(true)} aria-label="Menu">
+            <IconButton className="lg:!hidden !min-h-[44px] !min-w-[44px]" edge="start" onClick={() => setMobileOpen(true)} aria-label="Menu">
               <MenuRoundedIcon />
             </IconButton>
             <span className="text-sm font-extrabold text-slate-900 sm:text-base dark:text-white truncate">

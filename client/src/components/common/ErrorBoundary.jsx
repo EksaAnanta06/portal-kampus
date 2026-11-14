@@ -35,7 +35,7 @@ export default class ErrorBoundary extends Component {
     if (!this.state.hasError) return this.props.children;
 
     return (
-      <div className="flex min-h-screen items-center justify-center px-4">
+      <div className="flex min-h-dvh items-center justify-center px-4">
         <div className="card-surface w-full max-w-lg p-8 text-center">
           <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-pasim-50 text-pasim dark:bg-pasim-900/40 dark:text-pasim-300">
             <ErrorOutlineRoundedIcon fontSize="large" />

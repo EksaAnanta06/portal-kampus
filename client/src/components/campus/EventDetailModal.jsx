@@ -206,18 +206,18 @@ export default function EventDetailModal({
         maxWidth="md"
         fullScreen={isMobile}
         PaperProps={{
-          className: '!rounded-2xl overflow-hidden max-h-[92vh]',
+          className: '!rounded-none sm:!rounded-2xl overflow-hidden sm:max-h-[92dvh]',
         }}
       >
         {/* Header Dialog */}
-        <DialogTitle className="flex items-center justify-between !py-3 !px-5 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-          <div className="flex items-center gap-2">
+        <DialogTitle className="flex items-center justify-between !py-2.5 !px-4 sm:!px-5 border-b border-slate-100 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
+          <div className="flex items-center gap-2 min-w-0">
             <CalendarMonthRoundedIcon className="text-pasim dark:text-pasim-300" fontSize="small" />
             <span className="text-sm font-bold text-slate-800 dark:text-slate-100 truncate">
               Detail Agenda & Diskusi
             </span>
           </div>
-          <IconButton size="small" onClick={onClose}>
+          <IconButton onClick={onClose} aria-label="Tutup" className="!min-h-[40px] !min-w-[40px]">
             <CloseRoundedIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
