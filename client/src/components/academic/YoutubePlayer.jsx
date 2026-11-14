@@ -1,17 +1,16 @@
 // FILE: client/src/components/academic/YoutubePlayer.jsx
 import { useMemo } from 'react';
+import { extractYoutubeVideoId } from '../../utils/youtube';
 
 /**
- * Komponen responsif untuk memutar video rekaman perkuliahan YouTube
- * Mendukung videoId langsung atau URL lengkap (youtube.com/watch?v=, youtu.be, embed)
+ * Komponen responsif untuk memutar video rekaman perkuliahan YouTube.
+ * Mendukung videoId langsung atau URL lengkap (watch, youtu.be, shorts, live, embed).
  */
-export default function YoutubePlayer({ videoId, videoUrl, title = 'Rekaman Perkuliahan' }) {
+export default function YoutubePlayer({ videoId, videoUrl, url, title = 'Rekaman Perkuliahan' }) {
   const finalVideoId = useMemo(() => {
-    if (videoId) return videoId;
-    if (!videoUrl) return null;
-    const match = videoUrl.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-    return match ? match[1] : null;
-  }, [videoId, videoUrl]);
+    if (videoId && /^[A-Za-z0-9_-]{11}$/.test(videoId)) return videoId;
+    return extractYoutubeVideoId(videoUrl || url || '');
+  }, [videoId, videoUrl, url]);
 
   if (!finalVideoId) {
     return (

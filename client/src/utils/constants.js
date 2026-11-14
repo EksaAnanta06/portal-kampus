@@ -76,6 +76,19 @@ export const MATERIAL_STATUS_COLORS = {
   rejected: 'error',
   takedown: 'error',
 };
+
+export const MATERIAL_REPORT_REASONS = [
+  { value: 'hak_cipta', label: 'Pelanggaran Hak Cipta / Buku Bajakan' },
+  { value: 'konten_salah_menyesatkan', label: 'Konten Salah / Menyesatkan / Tidak Akurat' },
+  { value: 'tidak_pantas', label: 'Konten Tidak Pantas / Melanggar Etika Akademik' },
+  { value: 'spam', label: 'Spam / Iklan / Berkas Rusak' },
+  { value: 'lainnya', label: 'Alasan Lainnya' },
+];
+
+export const MATERIAL_REPORT_REASON_LABELS = MATERIAL_REPORT_REASONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
 export const ALLOWED_DOC_EXTENSIONS = [
   '.pdf',
   '.zip',

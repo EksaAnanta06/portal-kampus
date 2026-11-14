@@ -1,47 +1,59 @@
 // FILE: client/src/components/academic/LearningPackagesModal.jsx
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import Skeleton from '@mui/material/Skeleton';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import FolderZipRoundedIcon from '@mui/icons-material/FolderZipRounded';
-import Skeleton from '@mui/material/Skeleton';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import materialApi from '../../api/material.api';
-import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
+import { MATERIAL_TYPE_LABELS } from '../../utils/constants';
 
-export default function LearningPackagesModal({ open, onClose, prodiList = [] }) {
-  const user = useAuthStore((s) => s.user);
+export default function LearningPackagesModal({ open, onClose }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   const [packages, setPackages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPkg, setSelectedPkg] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
-  const fetchPackages = async () => {
-    try {
-      setLoading(true);
-      const res = await materialApi.getLearningPackages();
-      setPackages(res.data || []);
-    } catch {
-      setPackages([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    if (open) {
-      fetchPackages();
+    if (!open) {
+      setSelectedPkg(null);
+      return;
     }
+
+    const controller = new AbortController();
+    setLoading(true);
+    materialApi
+      .getLearningPackages({}, { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) setPackages(res.data || []);
+      })
+      .catch((err) => {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        setPackages([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
   }, [open]);
 
   const handleOpenDetail = async (pkgId) => {
     try {
       const res = await materialApi.getLearningPackageDetail(pkgId);
       setSelectedPkg(res.data);
-    } catch (err) {
+    } catch {
       toast.error('Gagal memuat rincian paket belajar.');
     }
   };
@@ -60,8 +72,15 @@ export default function LearningPackagesModal({ open, onClose, prodiList = [] })
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ className: '!rounded-3xl' }}>
-      <DialogTitle className="!font-black !text-lg !text-emerald-700 dark:!text-emerald-400 !flex !items-center !justify-between">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      fullScreen={isMobile}
+      PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
+    >
+      <DialogTitle className="!font-black !text-base sm:!text-lg !text-emerald-700 dark:!text-emerald-400 !flex !items-center !justify-between">
         <div className="flex items-center gap-2">
           <AutoAwesomeRoundedIcon />
           <span>Paket Belajar Semester (Kurasi Starter Pack)</span>
@@ -80,7 +99,7 @@ export default function LearningPackagesModal({ open, onClose, prodiList = [] })
             ))}
           </div>
         ) : packages.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400">
+          <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
             Belum ada paket belajar semester yang dikurasi saat ini.
           </div>
         ) : (
@@ -106,15 +125,16 @@ export default function LearningPackagesModal({ open, onClose, prodiList = [] })
                       {pkg.deskripsi}
                     </p>
                   )}
-                  <span className="mt-2 block text-[11px] text-slate-400">
-                    📦 {pkg.total_materials || 0} Materi Pilihan
+                  <span className="mt-2 block text-[11px] text-slate-500 dark:text-slate-400">
+                    {pkg.total_materials || 0} Materi Pilihan
                   </span>
                 </div>
 
                 <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
                   <button
+                    type="button"
                     onClick={() => handleOpenDetail(pkg.id)}
-                    className="text-xs font-bold text-slate-600 hover:text-emerald-600 dark:text-slate-300"
+                    className="min-h-[40px] px-2 text-xs font-bold text-slate-600 hover:text-emerald-600 dark:text-slate-300"
                   >
                     Lihat Isi
                   </button>
@@ -125,7 +145,7 @@ export default function LearningPackagesModal({ open, onClose, prodiList = [] })
                     disabled={downloadingId === pkg.id}
                     onClick={() => handleDownloadZip(pkg)}
                     startIcon={<FolderZipRoundedIcon sx={{ fontSize: 16 }} />}
-                    sx={{ borderRadius: 1.5, fontSize: 11 }}
+                    sx={{ borderRadius: 1.5, fontSize: 11, minHeight: 40 }}
                   >
                     {downloadingId === pkg.id ? 'Mengompres...' : 'Unduh ZIP'}
                   </Button>
@@ -138,40 +158,50 @@ export default function LearningPackagesModal({ open, onClose, prodiList = [] })
         {/* Modal Sub-Detail Isi Paket */}
         {selectedPkg && (
           <div className="mt-4 rounded-2xl border border-emerald-300 bg-emerald-50/50 p-4 dark:border-emerald-800 dark:bg-emerald-950/20">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <h4 className="text-xs font-black text-emerald-900 dark:text-emerald-200">
                 Isi Paket: {selectedPkg.judul}
               </h4>
               <button
+                type="button"
                 onClick={() => setSelectedPkg(null)}
-                className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                className="min-h-[36px] px-2 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-300"
               >
                 ✕ Tutup
               </button>
             </div>
-            <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
-              {selectedPkg.materials?.map((m) => (
-                <div
-                  key={m.id}
-                  className="rounded-xl bg-white p-2.5 text-xs border border-slate-200 dark:bg-navy dark:border-slate-700 flex items-center justify-between"
-                >
-                  <div>
-                    <span className="font-bold text-slate-800 dark:text-slate-200">
-                      {m.mata_kuliah_kode} - {m.judul}
-                    </span>
-                    <span className="block text-[10px] text-slate-400">
-                      Tipe: {m.tipe_materi} • Oleh: {m.uploader_nama}
-                    </span>
-                  </div>
-                </div>
-              ))}
+            <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
+              {(!selectedPkg.materials || selectedPkg.materials.length === 0) ? (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Paket belajar ini belum berisi materi.
+                </p>
+              ) : (
+                selectedPkg.materials.map((m) => (
+                  <Link
+                    key={m.id}
+                    to={`/akademik/materi/detail/${m.id}`}
+                    onClick={onClose}
+                    className="rounded-xl bg-white p-3 text-xs border border-slate-200 dark:bg-navy dark:border-slate-700 flex items-center justify-between gap-2 hover:border-emerald-500 transition"
+                  >
+                    <div className="min-w-0">
+                      <span className="block truncate font-bold text-slate-800 dark:text-slate-200">
+                        {m.mata_kuliah_kode} - {m.judul}
+                      </span>
+                      <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                        {MATERIAL_TYPE_LABELS[m.tipe_materi] || m.tipe_materi} • Oleh: {m.uploader_nama}
+                      </span>
+                    </div>
+                    <ArrowForwardRoundedIcon sx={{ fontSize: 16 }} className="shrink-0 text-emerald-600" />
+                  </Link>
+                ))
+              )}
             </div>
           </div>
         )}
       </DialogContent>
 
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} variant="contained" color="inherit" sx={{ borderRadius: 2 }}>
+        <Button onClick={onClose} variant="contained" color="inherit" sx={{ borderRadius: 2, minHeight: 40 }}>
           Tutup
         </Button>
       </DialogActions>

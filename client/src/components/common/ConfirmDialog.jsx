@@ -14,17 +14,22 @@ export default function ConfirmDialog({
   confirmText = 'Ya, Lanjutkan',
   cancelText = 'Batal',
   color = 'error',
+  confirmColor,
   loading = false,
   onConfirm,
   onClose,
+  onCancel,
   children,
 }) {
+  const resolvedColor = confirmColor || color;
+  const handleClose = onClose || onCancel;
+
   return (
-    <Dialog open={open} onClose={loading ? undefined : onClose} maxWidth="xs" fullWidth>
+    <Dialog open={open} onClose={loading ? undefined : handleClose} maxWidth="xs" fullWidth>
       <DialogTitle className="flex items-center gap-3 !pb-2">
         <span
           className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-            color === 'error'
+            resolvedColor === 'error'
               ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
               : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
           }`}
@@ -38,13 +43,13 @@ export default function ConfirmDialog({
         {children}
       </DialogContent>
       <DialogActions className="!px-6 !pb-5">
-        <Button onClick={onClose} disabled={loading} color="inherit">
+        <Button onClick={handleClose} disabled={loading} color="inherit">
           {cancelText}
         </Button>
         <Button
           onClick={onConfirm}
           variant="contained"
-          color={color}
+          color={resolvedColor}
           disabled={loading}
           startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
         >

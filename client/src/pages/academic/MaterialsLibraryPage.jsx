@@ -1,5 +1,5 @@
 // FILE: client/src/pages/academic/MaterialsLibraryPage.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import TextField from '@mui/material/TextField';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -19,6 +19,7 @@ import GavelRoundedIcon from '@mui/icons-material/GavelRounded';
 import materialApi from '../../api/material.api';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
+import useDebounce from '../../hooks/useDebounce';
 import UploadMaterialModal from '../../components/academic/UploadMaterialModal';
 import MaterialRulesModal from '../../components/academic/MaterialRulesModal';
 import LeaderboardModal from '../../components/academic/LeaderboardModal';
@@ -40,11 +41,12 @@ export default function MaterialsLibraryPage() {
 
   // Data State
   const [prodiList, setProdiList] = useState(FALLBACK_PRODI);
-  const [selectedProdiId, setSelectedProdiId] = useState(1);
+  const [selectedProdiId, setSelectedProdiId] = useState(user?.prodi_id || 1);
   const [selectedSemester, setSelectedSemester] = useState(1);
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search, 350);
   const [downloadingCourseId, setDownloadingCourseId] = useState(null);
 
   // Modal State
@@ -57,42 +59,56 @@ export default function MaterialsLibraryPage() {
   const [openPropose, setOpenPropose] = useState(false);
 
   // Fetch Daftar Prodi
-  const fetchProdi = async () => {
+  const fetchProdi = useCallback(async (signal) => {
     try {
-      const res = await materialApi.getProdiList();
+      const res = await materialApi.getProdiList(signal ? { signal } : {});
+      if (signal?.aborted) return;
       const list = res.data || [];
       if (list.length > 0) {
         setProdiList(list);
+        setSelectedProdiId((prev) => (list.some((p) => p.id === prev) ? prev : list[0].id));
       }
     } catch {
       // Gunakan fallback prodi jika fetch gagal
     }
-  };
-
-  // Fetch Mata Kuliah berdasarkan Prodi & Semester
-  const fetchCourses = async () => {
-    try {
-      setLoading(true);
-      const res = await materialApi.getCourses({
-        prodiId: selectedProdiId || null,
-        semester: selectedSemester,
-        search,
-      });
-      setCourses(res.data || []);
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Gagal memuat katalog mata kuliah.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchProdi();
   }, []);
 
+  // Fetch Mata Kuliah berdasarkan Prodi & Semester
+  const fetchCourses = useCallback(
+    async (signal) => {
+      try {
+        setLoading(true);
+        const res = await materialApi.getCourses(
+          {
+            prodiId: selectedProdiId || null,
+            semester: selectedSemester,
+            search: debouncedSearch,
+          },
+          signal ? { signal } : {}
+        );
+        if (signal?.aborted) return;
+        setCourses(res.data || []);
+      } catch (err) {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        toast.error(err.response?.data?.message || 'Gagal memuat katalog mata kuliah.');
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [selectedProdiId, selectedSemester, debouncedSearch]
+  );
+
   useEffect(() => {
-    fetchCourses();
-  }, [selectedProdiId, selectedSemester, search]);
+    const controller = new AbortController();
+    fetchProdi(controller.signal);
+    return () => controller.abort();
+  }, [fetchProdi]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchCourses(controller.signal);
+    return () => controller.abort();
+  }, [fetchCourses]);
 
   const handleDownloadCourseZip = async (e, course) => {
     e.preventDefault();
@@ -110,7 +126,7 @@ export default function MaterialsLibraryPage() {
   };
 
   return (
-    <div className="mx-auto min-h-screen max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+    <div className="mx-auto min-h-dvh max-w-7xl px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
       {/* Header Banner Peer-to-Peer Library */}
       <div className="relative mb-8 overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-700 to-sky-700 p-6 text-white shadow-xl md:p-10">
         <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
@@ -129,29 +145,33 @@ export default function MaterialsLibraryPage() {
             {/* Quick action buttons */}
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <button
+                type="button"
                 onClick={() => setOpenRequests(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/20 px-3.5 py-2 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
               >
                 <HelpCenterRoundedIcon sx={{ fontSize: 16 }} />
                 <span>Papan Minta Materi</span>
               </button>
               <button
+                type="button"
                 onClick={() => setOpenPackages(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/20 px-3.5 py-2 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
               >
                 <AutoAwesomeRoundedIcon sx={{ fontSize: 16 }} />
                 <span>Paket Belajar Semester</span>
               </button>
               <button
+                type="button"
                 onClick={() => setOpenLeaderboard(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/20 px-3.5 py-2 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
               >
                 <EmojiEventsRoundedIcon sx={{ fontSize: 16 }} />
                 <span>Papan Peringkat</span>
               </button>
               <button
+                type="button"
                 onClick={() => setOpenCollections(true)}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-white/20 px-3 py-1.5 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl bg-white/20 px-3.5 py-2 text-xs font-bold text-white backdrop-blur-md transition hover:bg-white/30"
               >
                 <BookmarkRoundedIcon sx={{ fontSize: 16 }} />
                 <span>Koleksi Saya</span>
@@ -162,18 +182,19 @@ export default function MaterialsLibraryPage() {
           {/* Action Utama: Bagikan Materi */}
           <div className="flex flex-col gap-2 shrink-0">
             <button
+              type="button"
               onClick={() => setOpenUpload(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-xs font-bold text-emerald-800 shadow-lg transition-all duration-200 hover:bg-emerald-50 hover:shadow-xl active:scale-95"
+              className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3.5 text-xs font-bold text-emerald-800 shadow-lg transition-all duration-200 hover:bg-emerald-50 hover:shadow-xl active:scale-95"
             >
               <AddRoundedIcon sx={{ fontSize: 20, color: 'success.main' }} />
-              <span>+ Bagikan Materi Baru</span>
+              <span>Bagikan Materi Baru</span>
             </button>
-            <div className="flex items-center justify-center gap-3 text-[11px] text-emerald-100">
-              <button onClick={() => setOpenPropose(true)} className="hover:underline flex items-center gap-1">
+            <div className="flex items-center justify-center gap-3 text-xs text-emerald-100">
+              <button type="button" onClick={() => setOpenPropose(true)} className="min-h-[36px] hover:underline flex items-center gap-1">
                 <PostAddRoundedIcon sx={{ fontSize: 14 }} /> Usulkan MK Baru
               </button>
               <span>•</span>
-              <button onClick={() => setOpenRules(true)} className="hover:underline flex items-center gap-1">
+              <button type="button" onClick={() => setOpenRules(true)} className="min-h-[36px] hover:underline flex items-center gap-1">
                 <GavelRoundedIcon sx={{ fontSize: 14 }} /> Aturan Konten
               </button>
             </div>
@@ -190,9 +211,10 @@ export default function MaterialsLibraryPage() {
           const isSelected = selectedProdiId === p.id;
           return (
             <button
+              type="button"
               key={p.id}
               onClick={() => setSelectedProdiId(p.id)}
-              className={`rounded-2xl px-4 py-2 text-xs font-bold transition-all duration-200 ${
+              className={`min-h-[40px] sm:min-h-[44px] rounded-2xl px-4 py-2 text-xs font-bold transition-all duration-200 ${
                 isSelected
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-navy-800 dark:text-slate-300 dark:hover:bg-navy-700'
@@ -213,9 +235,10 @@ export default function MaterialsLibraryPage() {
             const isSelected = selectedSemester === sem;
             return (
               <button
+                type="button"
                 key={sem}
                 onClick={() => setSelectedSemester(sem)}
-                className={`h-8 min-w-[32px] rounded-xl px-2.5 text-xs font-black transition ${
+                className={`min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] rounded-xl px-2.5 text-xs font-black transition ${
                   isSelected
                     ? 'bg-emerald-600 text-white shadow-sm'
                     : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-navy-800 dark:text-slate-300 dark:border-slate-700'

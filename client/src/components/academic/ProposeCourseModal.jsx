@@ -1,5 +1,5 @@
 // FILE: client/src/components/academic/ProposeCourseModal.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -7,27 +7,41 @@ import DialogActions from '@mui/material/DialogActions';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import Button from '@mui/material/Button';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import PostAddRoundedIcon from '@mui/icons-material/PostAddRounded';
 import materialApi from '../../api/material.api';
 import { toast } from '../../store/useThemeStore';
 
 export default function ProposeCourseModal({ open, onClose, prodiList = [], onSuccess }) {
-  const [form, setForm] = useState({
-    prodi_id: prodiList[0]?.id || '',
-    kode: '',
-    nama: '',
-    sks: 3,
-    semester_rekomendasi: 1,
-    deskripsi: '',
-  });
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const buildInitialForm = useCallback(
+    () => ({
+      prodi_id: prodiList[0]?.id || '',
+      kode: '',
+      nama: '',
+      sks: 3,
+      semester_rekomendasi: 1,
+      deskripsi: '',
+    }),
+    [prodiList]
+  );
+
+  const [form, setForm] = useState(buildInitialForm);
   const [submitting, setSubmitting] = useState(false);
 
-  // Sinkronisasi prodi_id saat prodiList sudah termuat
+  // Sinkronisasi & reset form saat modal dibuka/ditutup
   useEffect(() => {
+    if (!open) {
+      setForm(buildInitialForm());
+      return;
+    }
     if (prodiList.length > 0 && !form.prodi_id) {
       setForm((prev) => ({ ...prev, prodi_id: prodiList[0].id }));
     }
-  }, [prodiList, open]);
+  }, [prodiList, open, buildInitialForm]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -40,6 +54,7 @@ export default function ProposeCourseModal({ open, onClose, prodiList = [], onSu
       setSubmitting(true);
       const res = await materialApi.createCourse(form);
       toast.success(res.message || 'Mata kuliah berhasil diusulkan!');
+      setForm(buildInitialForm());
       onClose();
       if (onSuccess) onSuccess();
     } catch (err) {
@@ -50,8 +65,15 @@ export default function ProposeCourseModal({ open, onClose, prodiList = [], onSu
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ className: '!rounded-3xl' }}>
-      <DialogTitle className="!font-black !text-lg !text-emerald-700 dark:!text-emerald-400 !flex !items-center !gap-2">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={isMobile}
+      PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
+    >
+      <DialogTitle className="!font-black !text-base sm:!text-lg !text-emerald-700 dark:!text-emerald-400 !flex !items-center !gap-2">
         <PostAddRoundedIcon />
         <span>Usulkan Mata Kuliah Baru ke Katalog</span>
       </DialogTitle>
@@ -75,7 +97,7 @@ export default function ProposeCourseModal({ open, onClose, prodiList = [], onSu
             >
               {prodiList.map((p) => (
                 <MenuItem key={p.id} value={p.id}>
-                  {p.kode} - {p.nama} ({p.jenjang})
+                  {p.kode} - {p.nama} ({p.jenjang || 'S1'})
                 </MenuItem>
               ))}
             </TextField>

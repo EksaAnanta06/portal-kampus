@@ -6,29 +6,48 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
 import WorkspacePremiumRoundedIcon from '@mui/icons-material/WorkspacePremiumRounded';
 import Skeleton from '@mui/material/Skeleton';
 import materialApi from '../../api/material.api';
 
 export default function LeaderboardModal({ open, onClose }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [leaders, setLeaders] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (open) {
-      setLoading(true);
-      materialApi
-        .getLeaderboard({ limit: 15 })
-        .then((res) => setLeaders(res.data || []))
-        .catch(() => setLeaders([]))
-        .finally(() => setLoading(false));
-    }
+    if (!open) return;
+    const controller = new AbortController();
+    setLoading(true);
+    materialApi
+      .getLeaderboard({ limit: 15 }, { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) setLeaders(res.data || []);
+      })
+      .catch((err) => {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        setLeaders([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ className: '!rounded-3xl' }}>
-      <DialogTitle className="!font-black !text-lg !text-amber-600 dark:!text-amber-400 !flex !items-center !gap-2">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      fullScreen={isMobile}
+      PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
+    >
+      <DialogTitle className="!font-black !text-base sm:!text-lg !text-amber-600 dark:!text-amber-400 !flex !items-center !gap-2">
         <EmojiEventsRoundedIcon />
         <span>Papan Peringkat Kontributor Teraktif</span>
       </DialogTitle>

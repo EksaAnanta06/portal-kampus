@@ -4,15 +4,26 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import GavelRoundedIcon from '@mui/icons-material/GavelRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
-import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
 
 export default function MaterialRulesModal({ open, onClose }) {
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth PaperProps={{ className: '!rounded-3xl' }}>
-      <DialogTitle className="!font-black !text-lg !flex !items-center !gap-2 !text-emerald-700 dark:!text-emerald-400">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      fullScreen={isMobile}
+      PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
+    >
+      <DialogTitle className="!font-black !text-base sm:!text-lg !flex !items-center !gap-2 !text-emerald-700 dark:!text-emerald-400">
         <GavelRoundedIcon />
         <span>Aturan Konten & Etika Berbagi Materi (Peer-to-Peer)</span>
       </DialogTitle>

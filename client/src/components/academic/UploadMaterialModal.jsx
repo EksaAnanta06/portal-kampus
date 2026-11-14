@@ -1,5 +1,5 @@
 // FILE: client/src/components/academic/UploadMaterialModal.jsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -10,6 +10,8 @@ import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import LinearProgress from '@mui/material/LinearProgress';
+import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
@@ -17,39 +19,39 @@ import materialApi from '../../api/material.api';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
 import MaterialRulesModal from './MaterialRulesModal';
-
-const ALLOWED_EXTENSIONS = ['pdf', 'zip', 'rar', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png', 'webp'];
-const MAX_FILE_SIZE_MB = 10;
-
-const MATERIAL_TYPES = [
-  { value: 'ringkasan_catatan', label: '📝 Ringkasan & Catatan Belajar' },
-  { value: 'slide', label: '📊 Slide Presentasi (PDF/PPT)' },
-  { value: 'modul', label: '📖 Modul Praktikum / Buku Panduan' },
-  { value: 'soal_latihan', label: '🎯 Soal Latihan & Pembahasan' },
-  { value: 'video', label: '🎬 Video Pembahasan (Link YouTube)' },
-  { value: 'kode_referensi', label: '💻 Kode Referensi (ZIP / Repo Git)' },
-  { value: 'tips_belajar', label: '💡 Tips Belajar & Proyek' },
-  { value: 'lainnya', label: '📁 Berkas Pembelajaran Lainnya' },
-];
+import {
+  ALLOWED_DOC_ACCEPT,
+  ALLOWED_DOC_EXTENSIONS,
+  ALLOWED_DOC_MIMES,
+  MATERIAL_TYPE_OPTIONS,
+  MAX_DOC_FILE_SIZE,
+  MAX_DOC_FILE_SIZE_MB,
+} from '../../utils/constants';
 
 export default function UploadMaterialModal({ open, onClose, courses = [], defaultCourseId = '', onSuccess }) {
   const user = useAuthStore((s) => s.user);
   const fileInputRef = useRef(null);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
-  const [form, setForm] = useState({
-    mata_kuliah_id: defaultCourseId || '',
-    tipe_materi: 'ringkasan_catatan',
-    judul: '',
-    deskripsi: '',
-    tags: '',
-    tahun_akademik: '2025/2026',
-    angkatan_kontributor: user?.angkatan_year || user?.angkatan || '',
-    dosen_pengampu_teks: '',
-    sumber_kredit: '',
-    external_url: '',
-    agreement_checked: false,
-  });
+  const buildInitialForm = useCallback(
+    () => ({
+      mata_kuliah_id: defaultCourseId || courses[0]?.id || '',
+      tipe_materi: 'ringkasan_catatan',
+      judul: '',
+      deskripsi: '',
+      tags: '',
+      tahun_akademik: '2025/2026',
+      angkatan_kontributor: user?.angkatan_year || user?.angkatan || '',
+      dosen_pengampu_teks: '',
+      sumber_kredit: '',
+      external_url: '',
+      agreement_checked: false,
+    }),
+    [defaultCourseId, courses, user]
+  );
 
+  const [form, setForm] = useState(buildInitialForm);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -58,48 +60,81 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
   const [courseList, setCourseList] = useState(courses);
 
   useEffect(() => {
-    if (open) {
-      if (defaultCourseId) {
-        setForm((prev) => ({ ...prev, mata_kuliah_id: defaultCourseId }));
-      }
-      materialApi
-        .getCourses({ all: false })
-        .then((res) => {
-          if (res.data && res.data.length > 0) {
-            setCourseList(res.data);
-            if (!defaultCourseId && !form.mata_kuliah_id) {
-              setForm((prev) => ({ ...prev, mata_kuliah_id: res.data[0].id }));
-            }
-          }
-        })
-        .catch(() => {
-          if (courses && courses.length > 0) setCourseList(courses);
-        });
+    if (!open) {
+      setForm(buildInitialForm());
+      setSelectedFiles([]);
+      setUploadProgress(0);
+      setIsDragOver(false);
+      return;
     }
-  }, [open, defaultCourseId]);
+
+    const controller = new AbortController();
+    setForm((prev) => ({
+      ...prev,
+      mata_kuliah_id: defaultCourseId || prev.mata_kuliah_id,
+      angkatan_kontributor: prev.angkatan_kontributor || user?.angkatan_year || user?.angkatan || '',
+    }));
+
+    materialApi
+      .getCourses({ all: false }, { signal: controller.signal })
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        const fetched = res.data || [];
+        if (fetched.length > 0) {
+          setCourseList(fetched);
+          setForm((prev) => ({
+            ...prev,
+            mata_kuliah_id: defaultCourseId || prev.mata_kuliah_id || fetched[0].id,
+          }));
+        }
+      })
+      .catch((err) => {
+        if (err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') return;
+        if (courses && courses.length > 0) setCourseList(courses);
+      });
+
+    return () => controller.abort();
+  }, [open, defaultCourseId, courses, user, buildInitialForm]);
 
   const isStaff = user?.role === 'admin' || user?.role === 'moderator';
 
-  const handleFilesSelect = (files) => {
+  const handleFilesSelect = (fileList) => {
     const validFiles = [];
-    for (const f of files) {
-      const ext = f.name.slice(f.name.lastIndexOf('.') + 1).toLowerCase();
-      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+    for (const f of fileList) {
+      const ext = `.${f.name.split('.').pop()?.toLowerCase() || ''}`;
+      const validExt = ALLOWED_DOC_EXTENSIONS.includes(ext);
+      const validMime = !f.type || ALLOWED_DOC_MIMES.includes(f.type);
+      if (!validExt || !validMime) {
         toast.warning(`Format berkas "${f.name}" tidak didukung.`);
         continue;
       }
-      if (f.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-        toast.warning(`Ukuran berkas "${f.name}" melebihi batas ${MAX_FILE_SIZE_MB} MB.`);
+      if (f.size > MAX_DOC_FILE_SIZE) {
+        toast.warning(`Ukuran berkas "${f.name}" melebihi batas ${MAX_DOC_FILE_SIZE_MB} MB.`);
         continue;
       }
       validFiles.push(f);
     }
 
-    setSelectedFiles((prev) => [...prev, ...validFiles].slice(0, 10));
+    setSelectedFiles((prev) => {
+      const merged = [...prev];
+      for (const vf of validFiles) {
+        const exists = merged.some(
+          (item) => item.name === vf.name && item.size === vf.size && item.lastModified === vf.lastModified
+        );
+        if (!exists && merged.length < 10) {
+          merged.push(vf);
+        }
+      }
+      return merged;
+    });
   };
 
-  const removeFile = (idx) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  const removeFile = (target) => {
+    setSelectedFiles((prev) =>
+      prev.filter(
+        (f) => !(f.name === target.name && f.size === target.size && f.lastModified === target.lastModified)
+      )
+    );
   };
 
   const handleSubmit = async (e) => {
@@ -143,6 +178,8 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
       });
 
       toast.success(res.message || 'Materi berhasil diunggah!');
+      setForm(buildInitialForm());
+      setSelectedFiles([]);
       onClose();
       if (onSuccess) onSuccess();
     } catch (err) {
@@ -160,14 +197,15 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
         onClose={submitting ? undefined : onClose}
         maxWidth="md"
         fullWidth
-        PaperProps={{ className: '!rounded-3xl' }}
+        fullScreen={isMobile}
+        PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
       >
-        <DialogTitle className="!font-black !text-lg !text-emerald-700 dark:!text-emerald-400 !flex !items-center !justify-between">
+        <DialogTitle className="!font-black !text-base sm:!text-lg !text-emerald-700 dark:!text-emerald-400 !flex !flex-wrap !items-center !justify-between gap-2">
           <span>Bagikan Materi Pembelajaran (Peer-to-Peer)</span>
           <button
             type="button"
             onClick={() => setShowRulesModal(true)}
-            className="inline-flex items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 dark:text-slate-400 font-bold"
+            className="inline-flex min-h-[36px] items-center gap-1 text-xs text-slate-500 hover:text-emerald-600 dark:text-slate-400 font-bold"
           >
             <HelpOutlineRoundedIcon sx={{ fontSize: 16 }} />
             <span>Lihat Aturan Konten</span>
@@ -177,12 +215,11 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
         <DialogContent dividers className="space-y-4">
           {!isStaff && (
             <div className="rounded-2xl bg-amber-50 p-3.5 text-xs text-amber-900 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800/60 leading-relaxed">
-              💡 <strong>Alur Moderasi:</strong> Materi yang Anda bagikan akan berstatus <em>Pending</em> dan tayang ke publik setelah disetujui Moderator/Admin demi menjaga kualitas dan kepatuhan hak cipta.
+              <strong>Alur Moderasi:</strong> Materi yang Anda bagikan akan berstatus <em>Pending</em> dan tayang ke publik setelah disetujui Moderator/Admin demi menjaga kualitas dan kepatuhan hak cipta.
             </div>
           )}
 
           <form id="upload-p2p-material-form" onSubmit={handleSubmit} className="space-y-4">
-            {/* Grid Mata Kuliah & Tipe */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -216,7 +253,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                   onChange={(e) => setForm({ ...form, tipe_materi: e.target.value })}
                   required
                 >
-                  {MATERIAL_TYPES.map((t) => (
+                  {MATERIAL_TYPE_OPTIONS.map((t) => (
                     <MenuItem key={t.value} value={t.value}>
                       {t.label}
                     </MenuItem>
@@ -225,7 +262,6 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               </div>
             </div>
 
-            {/* Judul Materi */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Judul Materi Pembelajaran: *
@@ -240,7 +276,6 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               />
             </div>
 
-            {/* Deskripsi */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Deskripsi Singkat / Catatan Pembelajaran:
@@ -250,11 +285,10 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                 placeholder="Tuliskan catatan penting, topik yang dibahas, atau saran belajar bagi adik tingkat..."
                 value={form.deskripsi}
                 onChange={(e) => setForm({ ...form, deskripsi: e.target.value })}
-                className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-navy dark:text-slate-200"
+                className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs sm:text-sm text-slate-800 focus:border-emerald-500 focus:outline-none dark:border-slate-700 dark:bg-navy dark:text-slate-200"
               />
             </div>
 
-            {/* Metadata Konteks: Tag, Angkatan/Tahun, Dosen Opsional, Sumber */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -276,7 +310,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                 <TextField
                   fullWidth
                   size="small"
-                  placeholder="Contoh: Bpk. Dr. Ahmad / Ibu Maya (hanya metadata)"
+                  placeholder="Contoh: Bpk. Dr. Ahmad / Ibu Maya"
                   value={form.dosen_pengampu_teks}
                   onChange={(e) => setForm({ ...form, dosen_pengampu_teks: e.target.value })}
                 />
@@ -284,7 +318,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Tahun Akademik / Semester Materi Dibuat:
+                  Tahun Akademik Materi Dibuat:
                 </label>
                 <TextField
                   fullWidth
@@ -296,6 +330,21 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               </div>
 
               <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Angkatan Kontributor:
+                </label>
+                <TextField
+                  type="number"
+                  fullWidth
+                  size="small"
+                  placeholder="Contoh: 2023"
+                  value={form.angkatan_kontributor}
+                  onChange={(e) => setForm({ ...form, angkatan_kontributor: e.target.value })}
+                  inputProps={{ min: 1996, max: new Date().getFullYear() + 1 }}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                   Sumber / Kredit Asli (Jika merujuk karya lain):
                 </label>
@@ -309,7 +358,6 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               </div>
             </div>
 
-            {/* Link Eksternal / Video YouTube / Repo Git */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                 Tautan Eksternal / Video YouTube / Link Repo (Opsional):
@@ -323,10 +371,9 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               />
             </div>
 
-            {/* Area Drag and Drop Multiple File */}
             <div>
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                Unggah Berkas Materi (PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, ZIP, JPG/PNG - Max 10 MB/file):
+                Unggah Berkas Materi (PDF, DOC/DOCX, PPT/PPTX, XLS/XLSX, ZIP, JPG/PNG/WEBP - Maks {MAX_DOC_FILE_SIZE_MB} MB/berkas):
               </label>
               <div
                 onDragOver={(e) => {
@@ -350,34 +397,37 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                 <p className="mt-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                   Tarik & Lepas berkas di sini, atau <span className="text-emerald-600 underline">Pilih Berkas</span>
                 </p>
-                <p className="mt-1 text-[11px] text-slate-400">
+                <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                   Boleh mengunggah beberapa berkas sekaligus (Maksimal 10 berkas).
                 </p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip,.rar,.jpg,.jpeg,.png,.webp"
-                  onChange={(e) => e.target.files && handleFilesSelect(e.target.files)}
+                  accept={ALLOWED_DOC_ACCEPT}
+                  onChange={(e) => {
+                    if (e.target.files) handleFilesSelect(e.target.files);
+                    e.target.value = '';
+                  }}
                   className="hidden"
                 />
               </div>
 
-              {/* Daftar Berkas Terpilih */}
               {selectedFiles.length > 0 && (
                 <div className="mt-3 space-y-2">
-                  {selectedFiles.map((f, idx) => (
+                  {selectedFiles.map((f) => (
                     <div
-                      key={idx}
-                      className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs border border-slate-200 dark:bg-navy dark:border-slate-700"
+                      key={`${f.name}-${f.size}-${f.lastModified}`}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-slate-50 px-3 py-2 text-xs border border-slate-200 dark:bg-navy dark:border-slate-700"
                     >
-                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-sm">
+                      <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
                         📄 {f.name} ({(f.size / (1024 * 1024)).toFixed(2)} MB)
                       </span>
                       <button
                         type="button"
-                        onClick={() => removeFile(idx)}
-                        className="text-red-500 hover:text-red-700 font-bold ml-2 p-1"
+                        onClick={() => removeFile(f)}
+                        className="min-h-[36px] min-w-[36px] inline-flex items-center justify-center text-red-500 hover:text-red-700 shrink-0"
+                        aria-label={`Hapus berkas ${f.name}`}
                       >
                         <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
                       </button>
@@ -387,18 +437,25 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
               )}
             </div>
 
-            {/* Progress Bar Upload */}
             {submitting && uploadProgress > 0 && (
               <div className="space-y-1">
                 <div className="flex justify-between text-xs font-bold text-emerald-600">
-                  <span>Mengunggah Berkas...</span>
+                  <span>
+                    {uploadProgress >= 100
+                      ? 'Memproses & menyimpan ke cloud...'
+                      : 'Mengunggah Berkas...'}
+                  </span>
                   <span>{uploadProgress}%</span>
                 </div>
-                <LinearProgress variant="determinate" value={uploadProgress} color="success" sx={{ borderRadius: 1 }} />
+                <LinearProgress
+                  variant={uploadProgress >= 100 ? 'indeterminate' : 'determinate'}
+                  value={uploadProgress}
+                  color="success"
+                  sx={{ borderRadius: 1 }}
+                />
               </div>
             )}
 
-            {/* Checkbox Aturan Berbagi Materi */}
             <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
               <FormControlLabel
                 control={
@@ -427,7 +484,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
         </DialogContent>
 
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose} color="inherit" disabled={submitting}>
+          <Button onClick={onClose} color="inherit" disabled={submitting} sx={{ minHeight: 40 }}>
             Batal
           </Button>
           <Button
@@ -437,14 +494,13 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
             color="success"
             disabled={submitting}
             startIcon={<CloudUploadRoundedIcon />}
-            sx={{ borderRadius: 2 }}
+            sx={{ borderRadius: 2, minHeight: 40 }}
           >
             {submitting ? 'Mengunggah...' : 'Bagikan Materi'}
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* Modal Aturan Konten */}
       <MaterialRulesModal open={showRulesModal} onClose={() => setShowRulesModal(false)} />
     </>
   );

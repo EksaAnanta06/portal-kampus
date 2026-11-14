@@ -1,5 +1,5 @@
 // FILE: client/src/components/academic/ReportMaterialModal.jsx
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -10,25 +10,25 @@ import Button from '@mui/material/Button';
 import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import materialApi from '../../api/material.api';
 import { toast } from '../../store/useThemeStore';
-
-const REPORT_REASONS = [
-  { value: 'hak_cipta', label: 'Pelanggaran Hak Cipta / Buku Bajakan' },
-  { value: 'konten_salah_menyesatkan', label: 'Konten Salah / Menyesatkan / Tidak Akurat' },
-  { value: 'tidak_pantas', label: 'Konten Tidak Pantas / Melanggar Etika Akademik' },
-  { value: 'spam', label: 'Spam / Iklan / Berkas Rusak' },
-  { value: 'lainnya', label: 'Alasan Lainnya' },
-];
+import { MATERIAL_REPORT_REASONS } from '../../utils/constants';
 
 export default function ReportMaterialModal({ open, onClose, materialId, materialTitle }) {
-  const [alasan, setAlasan] = useState('hak_cipta');
+  const [alasan, setAlasan] = useState(MATERIAL_REPORT_REASONS[0].value);
   const [deskripsi, setDeskripsi] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setAlasan(MATERIAL_REPORT_REASONS[0].value);
+      setDeskripsi('');
+    }
+  }, [open]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       setSubmitting(true);
-      await materialApi.reportMaterial(materialId, { alasan, deskripsi });
+      await materialApi.reportMaterial(materialId, { alasan, deskripsi: deskripsi.trim() });
       toast.success('Laporan Anda telah berhasil dikirim ke moderator. Terima kasih atas kepedulian Anda!');
       onClose();
     } catch (err) {
@@ -40,7 +40,7 @@ export default function ReportMaterialModal({ open, onClose, materialId, materia
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth PaperProps={{ className: '!rounded-3xl' }}>
-      <DialogTitle className="!font-black !text-lg !text-red-600 dark:!text-red-400 !flex !items-center !gap-2">
+      <DialogTitle className="!font-black !text-base sm:!text-lg !text-red-600 dark:!text-red-400 !flex !items-center !gap-2">
         <FlagRoundedIcon />
         <span>Laporkan Materi Pembelajaran</span>
       </DialogTitle>
@@ -62,7 +62,7 @@ export default function ReportMaterialModal({ open, onClose, materialId, materia
               onChange={(e) => setAlasan(e.target.value)}
               required
             >
-              {REPORT_REASONS.map((r) => (
+              {MATERIAL_REPORT_REASONS.map((r) => (
                 <MenuItem key={r.value} value={r.value}>
                   {r.label}
                 </MenuItem>
@@ -79,13 +79,13 @@ export default function ReportMaterialModal({ open, onClose, materialId, materia
               placeholder="Jelaskan bagian yang melanggar atau berikan tautan sumber asli bukti hak cipta..."
               value={deskripsi}
               onChange={(e) => setDeskripsi(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs text-slate-800 focus:border-red-500 focus:outline-none dark:border-slate-700 dark:bg-navy dark:text-slate-200"
+              className="w-full rounded-xl border border-slate-300 bg-white p-2.5 text-xs sm:text-sm text-slate-800 focus:border-red-500 focus:outline-none dark:border-slate-700 dark:bg-navy dark:text-slate-200"
             />
           </div>
         </form>
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} color="inherit" disabled={submitting}>
+        <Button onClick={onClose} color="inherit" disabled={submitting} sx={{ minHeight: 40 }}>
           Batal
         </Button>
         <Button
@@ -94,7 +94,7 @@ export default function ReportMaterialModal({ open, onClose, materialId, materia
           variant="contained"
           color="error"
           disabled={submitting}
-          sx={{ borderRadius: 2 }}
+          sx={{ borderRadius: 2, minHeight: 40 }}
         >
           {submitting ? 'Mengirim...' : 'Kirim Laporan'}
         </Button>
