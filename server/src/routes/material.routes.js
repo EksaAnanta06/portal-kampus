@@ -208,7 +208,7 @@ router.delete('/comments/:commentId', validate(commentIdParamSchema, 'params'), 
 router.get('/', validate(materialsQuerySchema, 'query'), getMaterials);
 router.post(
   '/',
-  uploadMultipleDocuments,
+  uploadMultipleDocuments('files', 10),
   validate(createMaterialSchema),
   createMaterial
 );
@@ -222,7 +222,7 @@ router.post('/:id/download', validate(idParamSchema, 'params'), recordMaterialDo
 router.post(
   '/:id/versions',
   validate(idParamSchema, 'params'),
-  uploadSingleDocument,
+  uploadSingleDocument('file'),
   validate(uploadVersionSchema),
   uploadNewVersion
 );
