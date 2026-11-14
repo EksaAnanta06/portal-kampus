@@ -20,7 +20,13 @@ import EmptyState from '../../components/common/EmptyState';
 import useAuthStore, { selectIsStaff } from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
 import { getErrorMessage } from '../../api/axiosInstance';
-import { ANGKATAN_YEAR_OPTIONS } from '../../utils/constants';
+import {
+  ALLOWED_IMAGE_ACCEPT,
+  ALLOWED_IMAGE_TYPES,
+  ANGKATAN_YEAR_OPTIONS,
+  MAX_FILE_SIZE,
+  formatBytes,
+} from '../../utils/constants';
 
 export default function AngkatanListPage() {
   const isStaff = useAuthStore(selectIsStaff);
@@ -58,11 +64,45 @@ export default function AngkatanListPage() {
     fetchAngkatan();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (coverPreview && coverPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
+
+  const clearCoverSelection = () => {
+    if (coverPreview && coverPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(coverPreview);
+    }
+    setCoverFile(null);
+    setCoverPreview('');
+  };
+
+  const handleCloseCreate = () => {
+    if (submitting) return;
+    setOpenCreate(false);
+    clearCoverSelection();
+  };
+
   const handleSelectCover = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Gambar cover harus berupa file JPG, PNG, atau WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Ukuran gambar terlalu besar (${formatBytes(file.size)}). Maksimal 5 MB.`);
+      e.target.value = '';
+      return;
+    }
+    clearCoverSelection();
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const handleCreateSubmit = async (e) => {
@@ -78,8 +118,7 @@ export default function AngkatanListPage() {
       const res = await galleryApi.createAngkatan(formData);
       toast.success(res.message);
       setOpenCreate(false);
-      setCoverFile(null);
-      setCoverPreview('');
+      clearCoverSelection();
       setForm({ year: new Date().getFullYear(), title: '', description: '' });
       fetchAngkatan();
     } catch (err) {
@@ -174,7 +213,7 @@ export default function AngkatanListPage() {
       />
 
       {/* Dialog Tambah Angkatan (Admin & Moderator) */}
-      <Dialog open={openCreate} onClose={() => !submitting && setOpenCreate(false)} fullWidth maxWidth="sm">
+      <Dialog open={openCreate} onClose={handleCloseCreate} fullWidth maxWidth="sm">
         <form onSubmit={handleCreateSubmit}>
           <DialogTitle className="font-bold">Tambah Galeri Angkatan Baru</DialogTitle>
           <DialogContent className="!pt-3 space-y-4">
@@ -229,12 +268,17 @@ export default function AngkatanListPage() {
                     <span className="mt-2 text-xs font-semibold">Klik untuk memilih gambar cover</span>
                   </>
                 )}
-                <input type="file" accept="image/*" onChange={handleSelectCover} className="hidden" />
+                <input
+                  type="file"
+                  accept={ALLOWED_IMAGE_ACCEPT}
+                  onChange={handleSelectCover}
+                  className="hidden"
+                />
               </label>
             </div>
           </DialogContent>
           <DialogActions className="!px-6 !pb-5">
-            <Button color="inherit" onClick={() => setOpenCreate(false)} disabled={submitting}>
+            <Button color="inherit" onClick={handleCloseCreate} disabled={submitting}>
               Batal
             </Button>
             <Button

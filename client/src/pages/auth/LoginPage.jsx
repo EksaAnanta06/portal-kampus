@@ -24,7 +24,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
-  const from = location.state?.from?.pathname || '/';
+  const fromState = location.state?.from;
+  const from = fromState
+    ? `${fromState.pathname || '/'}${fromState.search || ''}`
+    : '/';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,7 +49,7 @@ export default function LoginPage() {
     <div className="card-surface p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200/80 dark:border-slate-800 backdrop-blur-xl bg-white/95 dark:bg-slate-900/95">
       {/* Header Logo Kampus PASIM di Tampilan Mobile */}
       <div className="flex items-center gap-3 mb-5 sm:hidden pb-4 border-b border-slate-100 dark:border-slate-800/80">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pasim-50 dark:bg-pasim-950/60 p-2 border border-pasim-100 dark:border-pasim-800/60 shadow-sm">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-pasim-50 dark:bg-pasim-900/60 p-2 border border-pasim-100 dark:border-pasim-800/60 shadow-sm">
           <img
             src="/logo-pasim.png"
             alt="Logo UNAS PASIM"
@@ -129,7 +132,8 @@ export default function LoginPage() {
       </form>
 
       {/* Shortcut Akun Demo */}
-      <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
+      {import.meta.env.DEV && (
+        <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-800 dark:text-white">Akun Demo Cepat</span>
           <span className="text-[10px] text-muted font-mono">Pasim123!</span>
@@ -152,7 +156,8 @@ export default function LoginPage() {
             Demo Alumni
           </Button>
         </div>
-      </div>
+        </div>
+      )}
 
       <div className="text-muted mt-6 text-center text-sm">
         Belum memiliki akun?{' '}

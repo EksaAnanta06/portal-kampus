@@ -25,20 +25,15 @@ export const ROLES = {
   MODERATOR: 'moderator',
   MAHASISWA: 'mahasiswa',
   ALUMNI: 'alumni',
-  DOSEN: 'dosen',
-  ASISTEN_LAB: 'asisten_lab',
 };
 
 export const STAFF_ROLES = [ROLES.ADMIN, ROLES.MODERATOR];
-export const INSTRUCTOR_ROLES = [ROLES.DOSEN, ROLES.ASISTEN_LAB, ROLES.ADMIN];
 
 export const ROLE_LABELS = {
   admin: 'Admin',
   moderator: 'Moderator',
   mahasiswa: 'Mahasiswa',
   alumni: 'Alumni',
-  dosen: 'Dosen',
-  asisten_lab: 'Asisten Lab',
 };
 
 export const ROLE_COLORS = {
@@ -46,27 +41,71 @@ export const ROLE_COLORS = {
   moderator: 'warning',
   mahasiswa: 'primary',
   alumni: 'success',
-  dosen: 'secondary',
-  asisten_lab: 'info',
 };
 
-export const SUBMISSION_STATUS_LABELS = {
-  belum_dikumpulkan: 'Belum Dikumpulkan',
-  menunggu_dinilai: 'Menunggu Dinilai',
-  sudah_dinilai: 'Sudah Dinilai',
-  perlu_revisi: 'Perlu Revisi',
+const envDocLimitMb = Number(import.meta.env.VITE_MAX_DOC_FILE_SIZE_MB);
+export const MAX_DOC_FILE_SIZE_MB = Number.isFinite(envDocLimitMb) && envDocLimitMb > 0 ? envDocLimitMb : 10;
+export const MAX_DOC_FILE_SIZE = MAX_DOC_FILE_SIZE_MB * 1024 * 1024;
+
+export const MATERIAL_TYPE_OPTIONS = [
+  { value: 'ringkasan_catatan', label: 'Ringkasan & Catatan' },
+  { value: 'slide', label: 'Slide Presentasi' },
+  { value: 'modul', label: 'Modul & E-Book' },
+  { value: 'soal_latihan', label: 'Soal & Pembahasan' },
+  { value: 'video', label: 'Video Pembelajaran' },
+  { value: 'kode_referensi', label: 'Kode & Referensi Proyek' },
+  { value: 'tips_belajar', label: 'Tips Belajar' },
+  { value: 'lainnya', label: 'Lainnya' },
+];
+
+export const MATERIAL_TYPE_LABELS = MATERIAL_TYPE_OPTIONS.reduce((acc, item) => {
+  acc[item.value] = item.label;
+  return acc;
+}, {});
+
+export const MATERIAL_STATUS_LABELS = {
+  pending: 'Menunggu Review',
+  approved: 'Terbit',
+  rejected: 'Ditolak',
+  takedown: 'Ditakedown',
 };
 
-export const SUBMISSION_STATUS_COLORS = {
-  belum_dikumpulkan: 'default',
-  menunggu_dinilai: 'warning',
-  sudah_dinilai: 'success',
-  perlu_revisi: 'error',
+export const MATERIAL_STATUS_COLORS = {
+  pending: 'warning',
+  approved: 'success',
+  rejected: 'error',
+  takedown: 'error',
 };
-
-export const MAX_DOC_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
-export const ALLOWED_DOC_EXTENSIONS = ['.pdf', '.zip', '.doc', '.docx', '.ppt', '.pptx', '.xls', '.xlsx'];
-export const ALLOWED_DOC_ACCEPT = '.pdf,.zip,.doc,.docx,.ppt,.pptx,.xls,.xlsx';
+export const ALLOWED_DOC_EXTENSIONS = [
+  '.pdf',
+  '.zip',
+  '.doc',
+  '.docx',
+  '.ppt',
+  '.pptx',
+  '.xls',
+  '.xlsx',
+  '.jpg',
+  '.jpeg',
+  '.png',
+  '.webp',
+];
+export const ALLOWED_DOC_MIMES = [
+  'application/pdf',
+  'application/zip',
+  'application/x-zip-compressed',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+];
+export const ALLOWED_DOC_ACCEPT = ALLOWED_DOC_EXTENSIONS.join(',');
 
 export const USER_STATUS_LABELS = {
   pending: 'Menunggu Verifikasi',
@@ -127,7 +166,7 @@ export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'ima
 export const ALLOWED_IMAGE_ACCEPT = '.jpg,.jpeg,.png,.webp';
 
 export const MIN_ANGKATAN_YEAR = 1996;
-export const MAX_ANGKATAN_YEAR = 2035;
+export const MAX_ANGKATAN_YEAR = Math.max(2035, new Date().getFullYear() + 5);
 
 export const ANGKATAN_YEAR_OPTIONS = (() => {
   const current = new Date().getFullYear();

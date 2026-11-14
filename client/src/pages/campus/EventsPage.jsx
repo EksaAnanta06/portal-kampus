@@ -35,12 +35,22 @@ export default function EventsPage() {
   const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     campusApi
-      .getEvents({ upcoming: upcomingOnly })
-      .then((res) => setEvents(res.data || []))
-      .catch((err) => console.error(err))
-      .finally(() => setLoading(false));
+      .getEvents({ upcoming: upcomingOnly }, { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) setEvents(res.data || []);
+      })
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error(err);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
   }, [upcomingOnly]);
 
   const handleOpenDetail = (ev) => {

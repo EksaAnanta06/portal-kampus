@@ -13,7 +13,13 @@ import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
 import { galleryApi } from '../../api/gallery.api';
 import { toast } from '../../store/useThemeStore';
 import { getErrorMessage } from '../../api/axiosInstance';
-import { ANGKATAN_YEAR_OPTIONS } from '../../utils/constants';
+import {
+  ALLOWED_IMAGE_ACCEPT,
+  ALLOWED_IMAGE_TYPES,
+  ANGKATAN_YEAR_OPTIONS,
+  MAX_FILE_SIZE,
+  formatBytes,
+} from '../../utils/constants';
 
 export default function EditAngkatanDialog({ open, angkatan, onClose, onSuccess }) {
   const [form, setForm] = useState({
@@ -26,7 +32,7 @@ export default function EditAngkatanDialog({ open, angkatan, onClose, onSuccess 
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (angkatan) {
+    if (open && angkatan) {
       setForm({
         title: angkatan.title || '',
         year: angkatan.year || new Date().getFullYear(),
@@ -34,14 +40,39 @@ export default function EditAngkatanDialog({ open, angkatan, onClose, onSuccess 
       });
       setCoverPreview(angkatan.cover_url || '');
       setCoverFile(null);
+    } else if (!open) {
+      setCoverFile(null);
+      setCoverPreview('');
     }
   }, [angkatan, open]);
+
+  useEffect(() => {
+    return () => {
+      if (coverPreview && coverPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(coverPreview);
+      }
+    };
+  }, [coverPreview]);
 
   const handleSelectFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Gambar banner harus berupa file JPG, PNG, atau WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Ukuran gambar terlalu besar (${formatBytes(file.size)}). Maksimal 5 MB.`);
+      e.target.value = '';
+      return;
+    }
+    if (coverPreview && coverPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(coverPreview);
+    }
     setCoverFile(file);
     setCoverPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -154,7 +185,7 @@ export default function EditAngkatanDialog({ open, angkatan, onClose, onSuccess 
               )}
               <input
                 type="file"
-                accept="image/jpeg,image/png,image/webp"
+                accept={ALLOWED_IMAGE_ACCEPT}
                 onChange={handleSelectFile}
                 className="hidden"
               />

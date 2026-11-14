@@ -36,6 +36,7 @@ export default function UploadPhotoDialog({
 }) {
   const isStaff = useAuthStore(selectIsStaff);
   const fileInputRef = useRef(null);
+  const filesRef = useRef([]);
 
   const [files, setFiles] = useState([]); // [{ file, preview }]
   const [angkatanId, setAngkatanId] = useState(defaultAngkatanId || '');
@@ -48,12 +49,30 @@ export default function UploadPhotoDialog({
   const [error, setError] = useState('');
 
   useEffect(() => {
+    filesRef.current = files;
+  }, [files]);
+
+  useEffect(() => {
+    return () => {
+      filesRef.current.forEach((f) => {
+        if (f?.preview?.startsWith('blob:')) {
+          URL.revokeObjectURL(f.preview);
+        }
+      });
+    };
+  }, []);
+
+  useEffect(() => {
     if (open) {
       if (defaultAngkatanId) setAngkatanId(defaultAngkatanId);
       else if (angkatanList.length > 0 && !angkatanId) setAngkatanId(angkatanList[0].id);
     } else {
       // Bersihkan object URL preview
-      files.forEach((f) => URL.revokeObjectURL(f.preview));
+      filesRef.current.forEach((f) => {
+        if (f?.preview?.startsWith('blob:')) {
+          URL.revokeObjectURL(f.preview);
+        }
+      });
       setFiles([]);
       setCaption('');
       setTags('');

@@ -36,9 +36,12 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import PhotoLightboxModal from '../../components/gallery/PhotoLightboxModal';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import {
+  ALLOWED_IMAGE_TYPES,
+  ANGKATAN_YEAR_OPTIONS,
+  MAX_FILE_SIZE,
   PHOTO_STATUS_COLORS,
   PHOTO_STATUS_LABELS,
-  ANGKATAN_YEAR_OPTIONS,
+  formatBytes,
   getInitials,
 } from '../../utils/constants';
 import { formatDate } from '../../utils/formatDate';
@@ -180,11 +183,33 @@ export default function ManageGalleryPage() {
     setBannerPreview('');
   };
 
+  useEffect(() => {
+    return () => {
+      if (bannerPreview && bannerPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(bannerPreview);
+      }
+    };
+  }, [bannerPreview]);
+
   const handleSelectBannerFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Gambar banner harus berupa file JPG, PNG, atau WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Ukuran gambar terlalu besar (${formatBytes(file.size)}). Maksimal 5 MB.`);
+      e.target.value = '';
+      return;
+    }
+    if (bannerPreview && bannerPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(bannerPreview);
+    }
     setBannerFile(file);
     setBannerPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const handleSaveBanner = async (e) => {

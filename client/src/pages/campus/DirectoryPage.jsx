@@ -9,6 +9,7 @@ import Avatar from '@mui/material/Avatar';
 import Chip from '@mui/material/Chip';
 import Skeleton from '@mui/material/Skeleton';
 import Tooltip from '@mui/material/Tooltip';
+import Pagination from '@mui/material/Pagination';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import WorkRoundedIcon from '@mui/icons-material/WorkRounded';
 import SchoolRoundedIcon from '@mui/icons-material/SchoolRounded';
@@ -19,6 +20,7 @@ import { userApi } from '../../api/user.api';
 import EmptyState from '../../components/common/EmptyState';
 import UserProfileModal from '../../components/campus/UserProfileModal';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
+import useDebounce from '../../hooks/useDebounce';
 import {
   ANGKATAN_YEAR_OPTIONS,
   PRODI_LIST,
@@ -32,15 +34,21 @@ export default function DirectoryPage() {
   const searchUrl = searchParams.get('search') || '';
 
   const [users, setUsers] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
   // Filter Form State
   const [search, setSearch] = useState(searchUrl);
+  const debouncedSearch = useDebounce(search.trim(), 350);
   const [angkatan, setAngkatan] = useState('');
   const [prodi, setProdi] = useState('');
   const [role, setRole] = useState('');
   const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    setSearch(searchUrl);
+    setPage(1);
+  }, [searchUrl]);
 
   // Modal Profile State
   const initialUserId = searchParams.get('user') ? Number(searchParams.get('user')) : null;
@@ -57,34 +65,42 @@ export default function DirectoryPage() {
     setSelectedUserId(null);
   };
 
-  const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const res = await userApi.getDirectory({
-        search: search || undefined,
-        angkatan: angkatan || undefined,
-        prodi: prodi || undefined,
-        role: role || undefined,
-        page,
-        limit: 12,
-      });
-      setUsers(res.data || []);
-      setTotal(res.meta?.total || 0);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUsers();
-  }, [search, angkatan, prodi, role, page]);
+    const controller = new AbortController();
+    setLoading(true);
+    userApi
+      .getDirectory(
+        {
+          search: debouncedSearch || undefined,
+          angkatan: angkatan || undefined,
+          prodi: prodi || undefined,
+          role: role || undefined,
+          page,
+          limit: 12,
+        },
+        { signal: controller.signal }
+      )
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        setUsers(res.data || []);
+        const tp = res.meta?.totalPages || Math.max(1, Math.ceil((res.meta?.total || 0) / 12));
+        setTotalPages(tp);
+      })
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error(err);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+
+    return () => controller.abort();
+  }, [debouncedSearch, angkatan, prodi, role, page]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
     setPage(1);
-    fetchUsers();
   };
 
   const resetFilters = () => {
@@ -116,7 +132,10 @@ export default function DirectoryPage() {
           placeholder="Cari nama, NIM, profesi..."
           value={search}
           size="small"
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -230,7 +249,9 @@ export default function DirectoryPage() {
                 <h3 className="mb-0 mt-3 text-base font-bold text-slate-900 line-clamp-1 dark:text-white group-hover:text-pasim dark:group-hover:text-pasim-300 transition">
                   {item.full_name}
                 </h3>
-                <span className="text-muted mt-1 text-xs">NIM: {item.nim}</span>
+                {item.nim && (
+                  <span className="text-muted mt-1 text-xs">NIM: {item.nim}</span>
+                )}
 
                 <div className="mt-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
                   {item.prodi}
@@ -283,7 +304,7 @@ export default function DirectoryPage() {
                         <a
                           href={item.linkedin_url}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="text-slate-400 hover:text-blue-600 font-bold"
                           title="LinkedIn"
                         >
@@ -294,7 +315,7 @@ export default function DirectoryPage() {
                         <a
                           href={item.instagram_url}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="text-slate-400 hover:text-pink-600 font-bold"
                           title="Instagram"
                         >
@@ -305,7 +326,7 @@ export default function DirectoryPage() {
                         <a
                           href={item.github_url}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="text-slate-400 hover:text-slate-900 dark:hover:text-white font-bold"
                           title="GitHub"
                         >
@@ -320,6 +341,18 @@ export default function DirectoryPage() {
           </div>
         )}
       </div>
+
+      {!loading && totalPages > 1 && (
+        <div className="flex justify-center pt-2">
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_e, val) => setPage(val)}
+            color="primary"
+            shape="rounded"
+          />
+        </div>
+      )}
 
       {/* Modal Kunjungi Profil Pengguna */}
       <UserProfileModal

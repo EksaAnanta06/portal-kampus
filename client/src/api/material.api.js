@@ -1,12 +1,6 @@
 // FILE: client/src/api/material.api.js
 import axiosInstance from './axiosInstance';
-
-const unwrap = (promise) => promise.then((res) => res.data);
-
-const cleanParams = (params = {}) =>
-  Object.fromEntries(
-    Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
-  );
+import { unwrap, cleanParams, triggerBlobDownload } from './apiHelpers';
 
 export const materialApi = {
   // ============================================================================
@@ -15,8 +9,8 @@ export const materialApi = {
   getProdiList: () => unwrap(axiosInstance.get('/materials/catalog/prodi')),
   createProdi: (payload) => unwrap(axiosInstance.post('/materials/catalog/prodi', payload)),
 
-  getCourses: (params) =>
-    unwrap(axiosInstance.get('/materials/catalog/courses', { params: cleanParams(params) })),
+  getCourses: (params, config = {}) =>
+    unwrap(axiosInstance.get('/materials/catalog/courses', { ...config, params: cleanParams(params) })),
   getCourseDetail: (courseId) =>
     unwrap(axiosInstance.get(`/materials/catalog/courses/${courseId}`)),
   createCourse: (payload) =>
@@ -31,16 +25,21 @@ export const materialApi = {
   // ============================================================================
   // 2. REPOSITORI & KONTRIBUSI MATERI (PEER-TO-PEER)
   // ============================================================================
-  getMaterials: (params) =>
-    unwrap(axiosInstance.get('/materials', { params: cleanParams(params) })),
+  getMaterials: (params, config = {}) =>
+    unwrap(axiosInstance.get('/materials', { ...config, params: cleanParams(params) })),
+  getMyApprovedMaterials: (config = {}) =>
+    unwrap(axiosInstance.get('/materials/my/approved', config)),
   getMaterialDetail: (materialId) =>
     unwrap(axiosInstance.get(`/materials/${materialId}`)),
-  getPendingMaterials: () =>
-    unwrap(axiosInstance.get('/materials', { params: { status: 'pending' } })),
-  getMaterialClasses: (params) =>
-    unwrap(axiosInstance.get('/materials/catalog/courses', { params: cleanParams(params) })),
-  getClassMaterials: (courseId) =>
-    unwrap(axiosInstance.get(`/materials/catalog/courses/${courseId}`)),
+  getPendingMaterials: (params = {}, config = {}) =>
+    unwrap(
+      axiosInstance.get('/materials', {
+        ...config,
+        params: cleanParams({ ...params, status: 'pending' }),
+      })
+    ),
+  recordDownload: (materialId) =>
+    unwrap(axiosInstance.post(`/materials/${materialId}/download`)),
 
   createMaterial: (formData, onProgress) =>
     unwrap(
@@ -61,10 +60,16 @@ export const materialApi = {
   deleteMaterial: (materialId) =>
     unwrap(axiosInstance.delete(`/materials/${materialId}`)),
 
-  uploadNewVersion: (materialId, formData) =>
+  uploadNewVersion: (materialId, formData, onProgress) =>
     unwrap(
       axiosInstance.post(`/materials/${materialId}/versions`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
+            onProgress(percent);
+          }
+        },
       })
     ),
 
@@ -89,10 +94,10 @@ export const materialApi = {
   reportMaterial: (materialId, payload) =>
     unwrap(axiosInstance.post(`/materials/${materialId}/report`, payload)),
 
-  getReports: () =>
-    unwrap(axiosInstance.get('/materials/reports')),
-  getMaterialReports: () =>
-    unwrap(axiosInstance.get('/materials/reports')),
+  getReports: (params, config = {}) =>
+    unwrap(axiosInstance.get('/materials/reports', { ...config, params: cleanParams(params) })),
+  getMaterialReports: (params, config = {}) =>
+    unwrap(axiosInstance.get('/materials/reports', { ...config, params: cleanParams(params) })),
 
   handleReport: (reportId, payload) =>
     unwrap(axiosInstance.patch(`/materials/reports/${reportId}`, payload)),
@@ -108,11 +113,17 @@ export const materialApi = {
   getUserCollections: () =>
     unwrap(axiosInstance.get('/materials/collections')),
 
+  getCollectionItems: (collectionId) =>
+    unwrap(axiosInstance.get(`/materials/collections/${collectionId}/items`)),
+
   createCollection: (payload) =>
     unwrap(axiosInstance.post('/materials/collections', payload)),
 
   toggleCollectionItem: (collectionId, payload) =>
     unwrap(axiosInstance.post(`/materials/collections/${collectionId}/toggle`, payload)),
+
+  removeCollectionItem: (collectionId, materiId) =>
+    unwrap(axiosInstance.delete(`/materials/collections/${collectionId}/items/${materiId}`)),
 
   deleteCollection: (collectionId) =>
     unwrap(axiosInstance.delete(`/materials/collections/${collectionId}`)),
@@ -141,6 +152,9 @@ export const materialApi = {
   createLearningPackage: (payload) =>
     unwrap(axiosInstance.post('/materials/packages', payload)),
 
+  updateLearningPackage: (packageId, payload) =>
+    unwrap(axiosInstance.put(`/materials/packages/${packageId}`, payload)),
+
   deleteLearningPackage: (packageId) =>
     unwrap(axiosInstance.delete(`/materials/packages/${packageId}`)),
 
@@ -150,29 +164,17 @@ export const materialApi = {
   downloadCourseZip: async (courseId, courseName = 'materi') => {
     const res = await axiosInstance.get(`/materials/courses/${courseId}/download-zip`, {
       responseType: 'blob',
+      timeout: 0,
     });
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Materi_${courseName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(res.data, `Materi_${courseName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
   },
 
   downloadPackageZip: async (packageId, packageName = 'paket_belajar') => {
     const res = await axiosInstance.get(`/materials/packages/${packageId}/download-zip`, {
       responseType: 'blob',
+      timeout: 0,
     });
-    const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/zip' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Paket_${packageName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    window.URL.revokeObjectURL(url);
+    triggerBlobDownload(res.data, `Paket_${packageName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
   },
 };
 

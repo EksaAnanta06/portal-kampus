@@ -95,16 +95,46 @@ export default function ManageCampusInfoPage() {
     fetchEvents();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (bannerPreview && bannerPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(bannerPreview);
+      }
+    };
+  }, [bannerPreview]);
+
+  useEffect(() => {
+    return () => {
+      if (eventBannerPreview && eventBannerPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(eventBannerPreview);
+      }
+    };
+  }, [eventBannerPreview]);
+
   // Handler Pengumuman
   const handleSelectBanner = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast.error('Gambar banner harus berupa JPG, PNG, atau WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Ukuran banner maksimal 5 MB.');
+      e.target.value = '';
+      return;
+    }
+    if (bannerPreview && bannerPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(bannerPreview);
+    }
     setBannerFile(file);
     setBannerPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const handleRemoveBanner = () => {
-    if (bannerPreview && bannerFile) {
+    if (bannerPreview && bannerPreview.startsWith('blob:')) {
       URL.revokeObjectURL(bannerPreview);
     }
     setBannerFile(null);
@@ -626,6 +656,9 @@ export default function ManageCampusInfoPage() {
                     color="error"
                     variant="contained"
                     onClick={() => {
+                      if (eventBannerPreview && eventBannerPreview.startsWith('blob:')) {
+                        URL.revokeObjectURL(eventBannerPreview);
+                      }
                       setEventBannerFile(null);
                       setEventBannerPreview('');
                       setEventForm((f) => ({ ...f, banner_url: '' }));
@@ -637,7 +670,7 @@ export default function ManageCampusInfoPage() {
                   </Button>
                 </div>
               ) : (
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-4 transition hover:border-pasim hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-850">
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 p-4 transition hover:border-pasim hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800">
                   <AddPhotoAlternateRoundedIcon className="mb-1 text-slate-400" />
                   <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                     Klik untuk unggah poster / banner agenda
@@ -645,17 +678,27 @@ export default function ManageCampusInfoPage() {
                   <span className="text-[11px] text-slate-400">PNG, JPG, WEBP maks 5MB</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept=".jpg,.jpeg,.png,.webp"
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
+                      if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+                        toast.error('Poster harus berupa gambar JPG, PNG, atau WEBP.');
+                        e.target.value = '';
+                        return;
+                      }
                       if (file.size > 5 * 1024 * 1024) {
                         toast.error('Ukuran poster maksimal 5MB.');
+                        e.target.value = '';
                         return;
+                      }
+                      if (eventBannerPreview && eventBannerPreview.startsWith('blob:')) {
+                        URL.revokeObjectURL(eventBannerPreview);
                       }
                       setEventBannerFile(file);
                       setEventBannerPreview(URL.createObjectURL(file));
+                      e.target.value = '';
                     }}
                   />
                 </label>

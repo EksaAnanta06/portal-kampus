@@ -20,10 +20,11 @@ export default function ProtectedRoute({ children }) {
   const location = useLocation();
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const accessToken = useAuthStore((s) => s.accessToken);
+  const user = useAuthStore((s) => s.user);
 
   if (!isInitialized) return <AuthLoading />;
 
-  if (!accessToken) {
+  if (!accessToken || !user) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 

@@ -1,28 +1,30 @@
 // FILE: client/src/api/campus.api.js
 import axiosInstance from './axiosInstance';
-
-const unwrap = (promise) => promise.then((res) => res.data);
-
-const cleanParams = (params = {}) =>
-  Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+import { unwrap, cleanParams } from './apiHelpers';
 
 export const campusApi = {
   getHome: () => unwrap(axiosInstance.get('/campus/home')),
-  search: (q) => unwrap(axiosInstance.get('/campus/search', { params: { q } })),
+  search: (q, config = {}) => unwrap(axiosInstance.get('/campus/search', { ...config, params: { q } })),
   getAdminStats: () => unwrap(axiosInstance.get('/campus/admin/stats')),
 
   // ---------- Pengumuman ----------
   /** params: category, search, page, limit */
-  getAnnouncements: (params) =>
-    unwrap(axiosInstance.get('/campus/announcements', { params: cleanParams(params) })),
-  getAnnouncementDetail: (slugOrId) => unwrap(axiosInstance.get(`/campus/announcements/${slugOrId}`)),
+  getAnnouncements: (params, config = {}) =>
+    unwrap(axiosInstance.get('/campus/announcements', { ...config, params: cleanParams(params) })),
+  getAnnouncementDetail: (slugOrId, config = {}) =>
+    unwrap(axiosInstance.get(`/campus/announcements/${slugOrId}`, config)),
   createAnnouncement: (payload) => unwrap(axiosInstance.post('/campus/announcements', payload)),
   updateAnnouncement: (id, payload) => unwrap(axiosInstance.put(`/campus/announcements/${id}`, payload)),
   deleteAnnouncement: (id) => unwrap(axiosInstance.delete(`/campus/announcements/${id}`)),
 
   // ---------- Agenda ----------
-  getEvents: ({ upcoming = false } = {}) =>
-    unwrap(axiosInstance.get('/campus/events', { params: upcoming ? { upcoming: 'true' } : {} })),
+  getEvents: ({ upcoming = false } = {}, config = {}) =>
+    unwrap(
+      axiosInstance.get('/campus/events', {
+        ...config,
+        params: upcoming ? { upcoming: 'true' } : {},
+      })
+    ),
   getEventDetail: (id) => unwrap(axiosInstance.get(`/campus/events/${id}`)),
   createEvent: (payload) => unwrap(axiosInstance.post('/campus/events', payload)),
   updateEvent: (id, payload) => unwrap(axiosInstance.put(`/campus/events/${id}`, payload)),

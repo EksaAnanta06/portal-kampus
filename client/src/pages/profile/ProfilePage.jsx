@@ -1,5 +1,5 @@
 // FILE: client/src/pages/profile/ProfilePage.jsx
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
 import Avatar from '@mui/material/Avatar';
@@ -10,17 +10,22 @@ import MenuItem from '@mui/material/MenuItem';
 import CircularProgress from '@mui/material/CircularProgress';
 import PhotoCameraRoundedIcon from '@mui/icons-material/PhotoCameraRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
+import ChangePasswordSection from '../../components/profile/ChangePasswordSection';
 import useAuthStore from '../../store/useAuthStore';
 import { userApi } from '../../api/user.api';
 import { toast } from '../../store/useThemeStore';
 import { getErrorMessage } from '../../api/axiosInstance';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import {
+  ALLOWED_IMAGE_ACCEPT,
+  ALLOWED_IMAGE_TYPES,
   ANGKATAN_YEAR_OPTIONS,
+  MAX_FILE_SIZE,
   PRODI_LIST,
   ROLE_LABELS,
   USER_STATUS_COLORS,
   USER_STATUS_LABELS,
+  formatBytes,
   getInitials,
 } from '../../utils/constants';
 
@@ -44,11 +49,33 @@ export default function ProfilePage() {
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url || '');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (avatarPreview && avatarPreview.startsWith('blob:')) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
+
   const handleSelectAvatar = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      toast.error('Foto profil harus berupa file JPG, PNG, atau WEBP.');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_FILE_SIZE) {
+      toast.error(`Ukuran foto profil terlalu besar (${formatBytes(file.size)}). Maksimal 5 MB.`);
+      e.target.value = '';
+      return;
+    }
+    if (avatarPreview && avatarPreview.startsWith('blob:')) {
+      URL.revokeObjectURL(avatarPreview);
+    }
     setAvatarFile(file);
     setAvatarPreview(URL.createObjectURL(file));
+    e.target.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -136,7 +163,7 @@ export default function ProfilePage() {
               <input
                 id="avatar-input"
                 type="file"
-                accept="image/*"
+                accept={ALLOWED_IMAGE_ACCEPT}
                 onChange={handleSelectAvatar}
                 className="hidden"
               />
@@ -175,6 +202,9 @@ export default function ProfilePage() {
               onChange={(e) => setForm((f) => ({ ...f, prodi: e.target.value }))}
               required
             >
+              {form.prodi && !PRODI_LIST.includes(form.prodi) && (
+                <MenuItem value={form.prodi}>{form.prodi}</MenuItem>
+              )}
               {PRODI_LIST.map((p) => (
                 <MenuItem key={p} value={p}>
                   {p}
@@ -269,12 +299,15 @@ export default function ProfilePage() {
               size="large"
               disabled={saving}
               startIcon={saving ? <CircularProgress size={18} color="inherit" /> : <SaveRoundedIcon />}
+              className="min-h-[44px]"
             >
               {saving ? 'Menyimpan...' : 'Simpan Perubahan'}
             </Button>
           </div>
         </form>
       </div>
+
+      <ChangePasswordSection />
     </div>
   );
 }

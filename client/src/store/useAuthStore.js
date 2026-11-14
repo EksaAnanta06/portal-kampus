@@ -1,6 +1,8 @@
 // FILE: client/src/store/useAuthStore.js
 import { create } from 'zustand';
 import { authApi } from '../api/auth.api';
+import { requestNewAccessToken } from '../api/axiosInstance';
+import { registerAuthBridge } from '../api/authBridge';
 import { STAFF_ROLES } from '../utils/constants';
 
 /**
@@ -27,7 +29,6 @@ const useAuthStore = create((set, get) => ({
   initAuth: async () => {
     if (get().isInitialized) return;
     try {
-      const { requestNewAccessToken } = await import('../api/axiosInstance');
       await requestNewAccessToken();
     } catch {
       set({ user: null, accessToken: null });
@@ -64,6 +65,12 @@ const useAuthStore = create((set, get) => ({
     return res.data.user;
   },
 }));
+
+registerAuthBridge({
+  getAccessToken: () => useAuthStore.getState().accessToken,
+  setAuthTokens: ({ user, accessToken }) => useAuthStore.getState().setAuth({ user, accessToken }),
+  clearAuthSession: () => useAuthStore.getState().clearAuth(),
+});
 
 // Selector helper
 export const selectIsAuthenticated = (s) => Boolean(s.accessToken && s.user);

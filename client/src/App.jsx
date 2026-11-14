@@ -27,8 +27,6 @@ const ManageGalleryPage = lazy(() => import('./pages/admin/ManageGalleryPage'));
 const UserVerificationPage = lazy(() => import('./pages/admin/UserVerificationPage'));
 const ManageCampusInfoPage = lazy(() => import('./pages/admin/ManageCampusInfoPage'));
 const ManageMaterialsPage = lazy(() => import('./pages/admin/ManageMaterialsPage'));
-const MaterialsListPage = lazy(() => import('./pages/academic/MaterialsListPage'));
-const ClassMaterialsDetailPage = lazy(() => import('./pages/academic/ClassMaterialsDetailPage'));
 const MaterialsLibraryPage = lazy(() => import('./pages/academic/MaterialsLibraryPage'));
 const CourseMaterialsPage = lazy(() => import('./pages/academic/CourseMaterialsPage'));
 const MaterialDetailPage = lazy(() => import('./pages/academic/MaterialDetailPage'));
@@ -80,7 +78,6 @@ export default function App() {
               <Route path="akademik/materi" element={<MaterialsLibraryPage />} />
               <Route path="akademik/materi/matkul/:courseId" element={<CourseMaterialsPage />} />
               <Route path="akademik/materi/detail/:materialId" element={<MaterialDetailPage />} />
-              <Route path="akademik/materi/:courseId" element={<CourseMaterialsPage />} />
             </Route>
           </Route>
 

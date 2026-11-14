@@ -1,6 +1,6 @@
 // FILE: client/src/api/axiosInstance.js
 import axios from 'axios';
-import useAuthStore from '../store/useAuthStore';
+import { getAccessToken, setAuthTokens, clearAuthSession } from './authBridge';
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
 
@@ -19,7 +19,7 @@ export const refreshClient = axios.create({
 
 // ---------- Request: sisipkan access token dari memori (Zustand) ----------
 axiosInstance.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken;
+  const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -45,7 +45,7 @@ export const requestNewAccessToken = () => {
       .post('/auth/refresh')
       .then((res) => {
         const { user, accessToken } = res.data.data;
-        useAuthStore.getState().setAuth({ user, accessToken });
+        setAuthTokens({ user, accessToken });
         return accessToken;
       })
       .finally(() => {
@@ -92,7 +92,7 @@ axiosInstance.interceptors.response.use(
       return axiosInstance(originalRequest);
     } catch (refreshError) {
       processQueue(refreshError, null);
-      useAuthStore.getState().clearAuth();
+      clearAuthSession();
       return Promise.reject(error);
     } finally {
       isRefreshing = false;

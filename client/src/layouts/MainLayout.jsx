@@ -27,7 +27,8 @@ import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSetting
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
-import { BrandLogo, ThemeToggleButton } from '../components/common/Navbar';
+import { BrandLogo } from '../components/common/BrandLogo';
+import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import GlobalSearchModal from '../components/common/GlobalSearchModal';
 import NotificationMenu from '../components/common/NotificationMenu';
 import useAuthStore, { selectIsStaff } from '../store/useAuthStore';

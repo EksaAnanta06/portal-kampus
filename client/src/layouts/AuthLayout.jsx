@@ -1,7 +1,8 @@
 // FILE: client/src/layouts/AuthLayout.jsx
 import { Outlet, Link } from 'react-router-dom';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { BrandLogo, ThemeToggleButton } from '../components/common/Navbar';
+import { BrandLogo } from '../components/common/BrandLogo';
+import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import { CAMPUS_INFO } from '../utils/constants';
 
 export default function AuthLayout() {

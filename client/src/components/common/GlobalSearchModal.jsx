@@ -10,14 +10,21 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import PhotoLibraryRoundedIcon from '@mui/icons-material/PhotoLibraryRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import PeopleAltRoundedIcon from '@mui/icons-material/PeopleAltRounded';
+import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import DescriptionRoundedIcon from '@mui/icons-material/DescriptionRounded';
 import useDebounce from '../../hooks/useDebounce';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import { campusApi } from '../../api/campus.api';
 import useAuthStore from '../../store/useAuthStore';
-import { CATEGORY_LABELS, ROLE_LABELS, getInitials } from '../../utils/constants';
+import {
+  CATEGORY_LABELS,
+  MATERIAL_TYPE_LABELS,
+  ROLE_LABELS,
+  getInitials,
+} from '../../utils/constants';
 import { formatShortDate } from '../../utils/formatDate';
 
-const EMPTY = { photos: [], announcements: [], users: [] };
+const EMPTY = { photos: [], announcements: [], users: [], materials: [], courses: [] };
 
 function SectionTitle({ icon, children }) {
   return (
@@ -44,19 +51,30 @@ export default function GlobalSearchModal({ open, onClose }) {
   }, [open]);
 
   useEffect(() => {
-    let active = true;
     if (debounced.length < 2) {
       setResults(EMPTY);
+      setLoading(false);
       return undefined;
     }
+    const controller = new AbortController();
     setLoading(true);
     campusApi
-      .search(debounced)
-      .then((res) => active && setResults(res.data || EMPTY))
-      .catch(() => active && setResults(EMPTY))
-      .finally(() => active && setLoading(false));
+      .search(debounced, { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) {
+          setResults({ ...EMPTY, ...(res.data || {}) });
+        }
+      })
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          setResults(EMPTY);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
     return () => {
-      active = false;
+      controller.abort();
     };
   }, [debounced]);
 
@@ -65,7 +83,12 @@ export default function GlobalSearchModal({ open, onClose }) {
     navigate(path);
   };
 
-  const total = results.photos.length + results.announcements.length + results.users.length;
+  const total =
+    (results.photos?.length || 0) +
+    (results.announcements?.length || 0) +
+    (results.users?.length || 0) +
+    (results.courses?.length || 0) +
+    (results.materials?.length || 0);
 
   return (
     <Dialog
@@ -73,14 +96,18 @@ export default function GlobalSearchModal({ open, onClose }) {
       onClose={onClose}
       fullWidth
       maxWidth="sm"
-      PaperProps={{ className: '!mt-[8vh] !self-start overflow-hidden' }}
+      PaperProps={{ className: '!mt-[6vh] sm:!mt-[8vh] !mx-3 sm:!mx-6 !w-full !self-start overflow-hidden' }}
     >
       <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
         <SearchRoundedIcon className="text-slate-400" />
         <InputBase
           autoFocus
           fullWidth
-          placeholder="Cari foto, pengumuman, atau nama mahasiswa/alumni..."
+          placeholder={
+            isLoggedIn
+              ? 'Cari foto, materi, matkul, pengumuman, atau sivitas...'
+              : 'Cari foto, pengumuman, atau nama mahasiswa/alumni...'
+          }
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="text-base"
@@ -145,6 +172,56 @@ export default function GlobalSearchModal({ open, onClose }) {
                 <span className="text-muted text-xs">
                   {CATEGORY_LABELS[a.category]} · {formatShortDate(a.published_at)}
                 </span>
+              </button>
+            ))}
+          </>
+        )}
+
+        {isLoggedIn && results.courses?.length > 0 && (
+          <>
+            <SectionTitle icon={<MenuBookRoundedIcon fontSize="inherit" />}>Mata Kuliah</SectionTitle>
+            {results.courses.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => go(`/akademik/materi/matkul/${c.id}`)}
+                className="flex w-full min-h-[44px] cursor-pointer items-center justify-between gap-3 border-0 bg-transparent px-4 py-2 text-left text-inherit hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{c.nama}</div>
+                  <div className="text-muted truncate text-xs">
+                    {c.kode} · {c.prodi_nama || 'Semua Prodi'}
+                    {c.semester_rekomendasi ? ` · Sem. ${c.semester_rekomendasi}` : ''}
+                  </div>
+                </div>
+                <Chip size="small" label={c.kode} variant="outlined" />
+              </button>
+            ))}
+          </>
+        )}
+
+        {isLoggedIn && results.materials?.length > 0 && (
+          <>
+            <SectionTitle icon={<DescriptionRoundedIcon fontSize="inherit" />}>Materi Perkuliahan</SectionTitle>
+            {results.materials.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                onClick={() => go(`/akademik/materi/detail/${m.id}`)}
+                className="flex w-full min-h-[44px] cursor-pointer items-center justify-between gap-3 border-0 bg-transparent px-4 py-2 text-left text-inherit hover:bg-slate-100 dark:hover:bg-slate-800"
+              >
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold">{m.judul}</div>
+                  <div className="text-muted truncate text-xs">
+                    {m.mata_kuliah_kode} {m.mata_kuliah_nama ? `· ${m.mata_kuliah_nama}` : ''}
+                  </div>
+                </div>
+                <Chip
+                  size="small"
+                  label={MATERIAL_TYPE_LABELS?.[m.tipe_materi] || m.tipe_materi}
+                  color="primary"
+                  variant="outlined"
+                />
               </button>
             ))}
           </>

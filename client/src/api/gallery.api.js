@@ -1,10 +1,6 @@
 // FILE: client/src/api/gallery.api.js
 import axiosInstance from './axiosInstance';
-
-const unwrap = (promise) => promise.then((res) => res.data);
-
-const cleanParams = (params = {}) =>
-  Object.fromEntries(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined));
+import { unwrap, cleanParams } from './apiHelpers';
 
 export const galleryApi = {
   // ---------- Angkatan ----------
@@ -23,7 +19,8 @@ export const galleryApi = {
 
   // ---------- Foto ----------
   /** params: angkatan_id, angkatan_year, album_id, uploader_id, status, search, tag, page, limit */
-  getPhotos: (params) => unwrap(axiosInstance.get('/photos', { params: cleanParams(params) })),
+  getPhotos: (params, config = {}) =>
+    unwrap(axiosInstance.get('/photos', { ...config, params: cleanParams(params) })),
   getPhotoDetail: (id) => unwrap(axiosInstance.get(`/photos/${id}`)),
   /** formData: photos[] (file), angkatan_id, album_id, caption, tags, taken_date */
   uploadPhotos: (formData, onProgress) =>

@@ -8,6 +8,7 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Skeleton from '@mui/material/Skeleton';
 import Button from '@mui/material/Button';
+import Pagination from '@mui/material/Pagination';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
@@ -17,6 +18,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { ANNOUNCEMENT_CATEGORIES, CATEGORY_LABELS } from '../../utils/constants';
 import { formatDate, formatShortDate } from '../../utils/formatDate';
 import useCloudinaryUrl from '../../hooks/useCloudinaryUrl';
+import useDebounce from '../../hooks/useDebounce';
 
 export default function AnnouncementsPage() {
   const { slugOrId } = useParams();
@@ -27,42 +29,64 @@ export default function AnnouncementsPage() {
 
   // Mode List
   const [list, setList] = useState([]);
-  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loadingList, setLoadingList] = useState(!slugOrId);
   const [category, setCategory] = useState('');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search.trim(), 350);
   const [page, setPage] = useState(1);
 
   // 1. Fetch Detail
   useEffect(() => {
     if (!slugOrId) {
       setDetail(null);
-      return;
+      return undefined;
     }
+    const controller = new AbortController();
     setLoadingDetail(true);
     campusApi
-      .getAnnouncementDetail(slugOrId)
-      .then((res) => setDetail(res.data))
-      .catch((err) => {
-        console.error(err);
-        setDetail(null);
+      .getAnnouncementDetail(slugOrId, { signal: controller.signal })
+      .then((res) => {
+        if (!controller.signal.aborted) setDetail(res.data);
       })
-      .finally(() => setLoadingDetail(false));
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error(err);
+          setDetail(null);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingDetail(false);
+      });
+    return () => controller.abort();
   }, [slugOrId]);
 
   // 2. Fetch List
   useEffect(() => {
-    if (slugOrId) return;
+    if (slugOrId) return undefined;
+    const controller = new AbortController();
     setLoadingList(true);
     campusApi
-      .getAnnouncements({ category: category || undefined, search: search || undefined, page, limit: 9 })
+      .getAnnouncements(
+        { category: category || undefined, search: debouncedSearch || undefined, page, limit: 9 },
+        { signal: controller.signal }
+      )
       .then((res) => {
+        if (controller.signal.aborted) return;
         setList(res.data || []);
-        setTotal(res.meta?.total || 0);
+        const tp = res.meta?.totalPages || Math.max(1, Math.ceil((res.meta?.total || 0) / 9));
+        setTotalPages(tp);
       })
-      .catch((err) => console.error(err))
-      .finally(() => setLoadingList(false));
-  }, [slugOrId, category, search, page]);
+      .catch((err) => {
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error(err);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoadingList(false);
+      });
+    return () => controller.abort();
+  }, [slugOrId, category, debouncedSearch, page]);
 
   const detailBanner = useCloudinaryUrl(detail?.banner_url, 'hero');
 
@@ -74,7 +98,9 @@ export default function AnnouncementsPage() {
           <Skeleton width={120} />
           <Skeleton height={40} />
           <Skeleton variant="rectangular" height={300} className="!rounded-2xl" />
-          <Skeleton count={5} />
+          <Skeleton width="92%" />
+          <Skeleton width="85%" />
+          <Skeleton width="72%" />
         </div>
       );
     }
@@ -164,7 +190,10 @@ export default function AnnouncementsPage() {
         <TextField
           placeholder="Cari kata kunci warta..."
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(1);
+          }}
           size="small"
           className="w-full sm:w-72"
           InputProps={{
@@ -202,7 +231,8 @@ export default function AnnouncementsPage() {
               <div key={i} className="card-surface p-4 sm:p-6 space-y-3">
                 <Skeleton width="40%" />
                 <Skeleton height={28} />
-                <Skeleton count={3} />
+                <Skeleton width="90%" />
+                <Skeleton width="70%" />
               </div>
             ))}
           </div>
@@ -246,6 +276,18 @@ export default function AnnouncementsPage() {
           </div>
         )}
       </div>
+
+      {!loadingList && totalPages > 1 && (
+        <div className="flex justify-center pt-2">
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_e, val) => setPage(val)}
+            color="primary"
+            shape="rounded"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 // FILE: client/src/pages/HomePage.jsx
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
@@ -22,15 +22,16 @@ import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineR
 import { campusApi } from '../api/campus.api';
 import { galleryApi } from '../api/gallery.api';
 import PhotoMasonryGrid from '../components/gallery/PhotoMasonryGrid';
-import PhotoLightboxModal from '../components/gallery/PhotoLightboxModal';
 import AngkatanCard from '../components/gallery/AngkatanCard';
-import EditAngkatanDialog from '../components/gallery/EditAngkatanDialog';
-import UploadPhotoDialog from '../components/gallery/UploadPhotoDialog';
-import EventDetailModal from '../components/campus/EventDetailModal';
 import useAuthStore from '../store/useAuthStore';
 import { CATEGORY_LABELS } from '../utils/constants';
 import { formatShortDate, formatEventRange, getDateParts } from '../utils/formatDate';
 import { getOptimizedImageUrl } from '../hooks/useCloudinaryUrl';
+
+const PhotoLightboxModal = lazy(() => import('../components/gallery/PhotoLightboxModal'));
+const EditAngkatanDialog = lazy(() => import('../components/gallery/EditAngkatanDialog'));
+const UploadPhotoDialog = lazy(() => import('../components/gallery/UploadPhotoDialog'));
+const EventDetailModal = lazy(() => import('../components/campus/EventDetailModal'));
 
 export default function HomePage() {
   const user = useAuthStore((s) => s.user);
@@ -344,10 +345,11 @@ export default function HomePage() {
               data.events.map((ev) => {
                 const dateParts = getDateParts(ev.start_date);
                 return (
-                  <div
+                  <button
                     key={ev.id}
+                    type="button"
                     onClick={() => setSelectedEvent(ev)}
-                    className="card-surface flex items-start gap-3 p-3.5 sm:p-4 transition hover:border-pasim-300 min-w-0 overflow-hidden cursor-pointer group hover:shadow-md"
+                    className="w-full text-left card-surface flex items-start gap-3 p-3.5 sm:p-4 transition hover:border-pasim-300 min-w-0 overflow-hidden cursor-pointer group hover:shadow-md"
                     title="Klik untuk melihat detail agenda kegiatan"
                   >
                     {ev.banner_url ? (
@@ -392,7 +394,7 @@ export default function HomePage() {
                         </div>
                       </div>
                     </div>
-                  </div>
+                  </button>
                 );
               })
             )}
@@ -460,47 +462,68 @@ export default function HomePage() {
         />
       </div>
 
-      {/* Lightbox Modal */}
-      <PhotoLightboxModal
-        open={lightboxOpen}
-        photoId={selectedPhotoId}
-        photos={data.recentPhotos}
-        onClose={() => setLightboxOpen(false)}
-        onNavigate={(id) => setSelectedPhotoId(id)}
-        onPhotoUpdated={handlePhotoUpdated}
-        onPhotoDeleted={handlePhotoDeleted}
-      />
+      <Suspense fallback={null}>
+        {/* Lightbox Modal */}
+        {lightboxOpen && (
+          <PhotoLightboxModal
+            open={lightboxOpen}
+            photoId={selectedPhotoId}
+            photos={data.recentPhotos}
+            onClose={() => setLightboxOpen(false)}
+            onNavigate={(id) => setSelectedPhotoId(id)}
+            onPhotoUpdated={handlePhotoUpdated}
+            onPhotoDeleted={handlePhotoDeleted}
+          />
+        )}
 
-      {/* Upload Dialog */}
-      {angkatanList.length > 0 && (
-        <UploadPhotoDialog
-          open={uploadDialogOpen}
-          onClose={() => setUploadDialogOpen(false)}
-          angkatanList={angkatanList}
-          onSuccess={() => {
-            campusApi.getHome().then((res) => setData(res.data));
-          }}
-        />
-      )}
+        {/* Upload Dialog */}
+        {uploadDialogOpen && angkatanList.length > 0 && (
+          <UploadPhotoDialog
+            open={uploadDialogOpen}
+            onClose={() => setUploadDialogOpen(false)}
+            angkatanList={angkatanList}
+            onSuccess={async () => {
+              try {
+                const res = await campusApi.getHome();
+                setData(res.data);
+              } catch (err) {
+                console.error(err);
+              }
+            }}
+          />
+        )}
 
-      {/* Edit Angkatan Dialog (Admin & Moderator) */}
-      <EditAngkatanDialog
-        open={Boolean(angkatanToEdit)}
-        angkatan={angkatanToEdit}
-        onClose={() => setAngkatanToEdit(null)}
-        onSuccess={() => {
-          galleryApi.getAngkatanList().then((res) => setAngkatanList(res.data || []));
-          campusApi.getHome().then((res) => setData(res.data));
-        }}
-      />
+        {/* Edit Angkatan Dialog (Admin & Moderator) */}
+        {Boolean(angkatanToEdit) && (
+          <EditAngkatanDialog
+            open={Boolean(angkatanToEdit)}
+            angkatan={angkatanToEdit}
+            onClose={() => setAngkatanToEdit(null)}
+            onSuccess={async () => {
+              try {
+                const [angkatanRes, homeRes] = await Promise.all([
+                  galleryApi.getAngkatanList(),
+                  campusApi.getHome(),
+                ]);
+                setAngkatanList(angkatanRes.data || []);
+                setData(homeRes.data);
+              } catch (err) {
+                console.error(err);
+              }
+            }}
+          />
+        )}
 
-      {/* Modal Detail Agenda & Komentar */}
-      <EventDetailModal
-        open={Boolean(selectedEvent)}
-        event={selectedEvent}
-        onClose={() => setSelectedEvent(null)}
-        onEventUpdated={handleEventUpdated}
-      />
+        {/* Modal Detail Agenda & Komentar */}
+        {Boolean(selectedEvent) && (
+          <EventDetailModal
+            open={Boolean(selectedEvent)}
+            event={selectedEvent}
+            onClose={() => setSelectedEvent(null)}
+            onEventUpdated={handleEventUpdated}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }

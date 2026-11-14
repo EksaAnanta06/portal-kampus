@@ -14,6 +14,7 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import Skeleton from '@mui/material/Skeleton';
+import Pagination from '@mui/material/Pagination';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -27,6 +28,7 @@ import { toast } from '../../store/useThemeStore';
 import { getErrorMessage } from '../../api/axiosInstance';
 import EmptyState from '../../components/common/EmptyState';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
+import useDebounce from '../../hooks/useDebounce';
 import {
   ROLE_LABELS,
   USER_STATUS_COLORS,
@@ -38,11 +40,13 @@ import { formatDateTime } from '../../utils/formatDate';
 export default function UserVerificationPage() {
   const [users, setUsers] = useState([]);
   const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
 
   // Filter
   const [status, setStatus] = useState('pending');
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebounce(search.trim(), 350);
   const [page, setPage] = useState(1);
 
   // Edit / Verifikasi Dialog
@@ -51,27 +55,38 @@ export default function UserVerificationPage() {
   const [newRole, setNewRole] = useState('mahasiswa');
   const [saving, setSaving] = useState(false);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (signal) => {
     setLoading(true);
     try {
-      const res = await userApi.getAdminUsers({
-        status: status || undefined,
-        search: search || undefined,
-        page,
-        limit: 20,
-      });
+      const res = await userApi.getAdminUsers(
+        {
+          status: status || undefined,
+          search: debouncedSearch || undefined,
+          page,
+          limit: 20,
+        },
+        signal ? { signal } : {}
+      );
+      if (signal?.aborted) return;
       setUsers(res.data || []);
-      setTotal(res.meta?.total || 0);
+      const count = res.meta?.total || 0;
+      setTotal(count);
+      setTotalPages(res.meta?.totalPages || Math.max(1, Math.ceil(count / 20)));
     } catch (err) {
-      console.error(err);
+      if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+        console.error(err);
+      }
     } finally {
-      setLoading(false);
+      if (!signal?.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchUsers();
-  }, [status, search, page]);
+    const controller = new AbortController();
+    fetchUsers(controller.signal);
+    return () => controller.abort();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, debouncedSearch, page]);
 
   const handleQuickVerify = async (user, targetStatus) => {
     try {
@@ -121,16 +136,17 @@ export default function UserVerificationPage() {
 
       {/* FILTER BOX */}
       <div className="card-surface flex flex-col justify-between gap-4 p-4 sm:flex-row sm:items-center">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-3 w-full">
           <TextField
             select
+            size="small"
             label="Status Akun"
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);
               setPage(1);
             }}
-            className="w-48"
+            className="w-full sm:w-48"
           >
             <MenuItem value="">Semua Status</MenuItem>
             <MenuItem value="pending">Menunggu Verifikasi</MenuItem>
@@ -140,10 +156,14 @@ export default function UserVerificationPage() {
           </TextField>
 
           <TextField
+            size="small"
             placeholder="Cari nama, NIM, atau email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-64"
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
+            className="w-full sm:w-64"
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -159,8 +179,102 @@ export default function UserVerificationPage() {
         </span>
       </div>
 
-      {/* TABEL PENGGUNA */}
-      <TableContainer component={Paper} className="card-surface overflow-x-auto shadow-none">
+      {/* DAFTAR MOBILE (< md) */}
+      <div className="space-y-3 md:hidden">
+        {loading ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="card-surface p-4 space-y-2">
+              <Skeleton width="55%" height={24} />
+              <Skeleton width="75%" />
+              <Skeleton width="40%" />
+            </div>
+          ))
+        ) : users.length === 0 ? (
+          <div className="card-surface p-4">
+            <EmptyState title="Tidak ada akun pengguna yang sesuai kriteria." />
+          </div>
+        ) : (
+          users.map((u) => (
+            <div key={u.id} className="card-surface p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <Avatar
+                    src={getOptimizedImageUrl(u.avatar_url, { width: 80, height: 80 })}
+                    sx={{ width: 40, height: 40, fontSize: 14 }}
+                  >
+                    {getInitials(u.full_name)}
+                  </Avatar>
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm text-slate-900 dark:text-white truncate">
+                      {u.full_name}
+                    </div>
+                    <div className="text-muted text-xs truncate">
+                      {u.nim} · {u.email}
+                    </div>
+                  </div>
+                </div>
+                <Chip
+                  size="small"
+                  label={USER_STATUS_LABELS[u.status] || u.status}
+                  color={USER_STATUS_COLORS[u.status] || 'default'}
+                />
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <Chip
+                  size="small"
+                  label={ROLE_LABELS[u.role] || u.role}
+                  color={ROLE_COLORS[u.role] || 'default'}
+                  variant="outlined"
+                />
+                <span className="text-muted">
+                  {u.prodi} · Angkatan {u.angkatan_year || '-'}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                {u.status === 'pending' && (
+                  <>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      startIcon={<CheckRoundedIcon />}
+                      onClick={() => handleQuickVerify(u, 'active')}
+                      className="min-h-[40px]"
+                    >
+                      Setujui
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      startIcon={<BlockRoundedIcon />}
+                      onClick={() => handleQuickVerify(u, 'rejected')}
+                      className="min-h-[40px]"
+                    >
+                      Tolak
+                    </Button>
+                  </>
+                )}
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  startIcon={<ManageAccountsRoundedIcon />}
+                  onClick={() => handleOpenEdit(u)}
+                  className="min-h-[40px] ml-auto"
+                >
+                  Ubah
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* TABEL PENGGUNA (DESKTOP >= md) */}
+      <TableContainer component={Paper} className="card-surface overflow-x-auto shadow-none hidden md:block">
         <Table>
           <TableHead>
             <TableRow>
@@ -263,6 +377,18 @@ export default function UserVerificationPage() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      {!loading && totalPages > 1 && (
+        <div className="flex justify-center pt-2">
+          <Pagination
+            count={totalPages}
+            page={page}
+            onChange={(_e, val) => setPage(val)}
+            color="primary"
+            shape="rounded"
+          />
+        </div>
+      )}
 
       {/* DIALOG UBAH STATUS / PERAN */}
       <Dialog

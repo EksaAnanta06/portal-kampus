@@ -35,6 +35,7 @@ import useAuthStore, { selectIsStaff } from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
 import { getErrorMessage } from '../../api/axiosInstance';
 import useCloudinaryUrl from '../../hooks/useCloudinaryUrl';
+import useDebounce from '../../hooks/useDebounce';
 
 export default function AngkatanDetailPage() {
   const { yearOrId } = useParams();
@@ -54,6 +55,7 @@ export default function AngkatanDetailPage() {
   const [photos, setPhotos] = useState([]);
   const [loadingPhotos, setLoadingPhotos] = useState(true);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const debouncedSearch = useDebounce(searchKeyword.trim(), 350);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
 
@@ -78,7 +80,7 @@ export default function AngkatanDetailPage() {
   // Dialog Edit Informasi & Banner Angkatan (Khusus Admin & Moderator)
   const [openEditAngkatan, setOpenEditAngkatan] = useState(false);
 
-  const canManageAlbum = (al) => isStaff || (user && al && (al.created_by === user.id || !al.created_by));
+  const canManageAlbum = (al) => Boolean(isStaff || (user && al && al.created_by && al.created_by === user.id));
 
   // 1. Muat Detail Angkatan & Album
   const fetchAngkatanData = useCallback(async () => {
@@ -100,19 +102,19 @@ export default function AngkatanDetailPage() {
 
   // 2. Muat Foto Angkatan (filter album, search, pagination)
   const fetchPhotos = useCallback(
-    async (targetPage = 1, append = false) => {
+    async (targetPage = 1, append = false, signal) => {
       if (!angkatan?.id) return;
       setLoadingPhotos(true);
       try {
         const params = {
           angkatan_id: angkatan.id,
           album_id: selectedAlbumId === 'all' ? undefined : selectedAlbumId,
-          search: searchKeyword || undefined,
+          search: debouncedSearch || undefined,
           page: targetPage,
           limit: 18,
           status: 'approved',
         };
-        const res = await galleryApi.getPhotos(params);
+        const res = await galleryApi.getPhotos(params, { signal });
         if (append) {
           setPhotos((prev) => [...prev, ...res.data]);
         } else {
@@ -121,19 +123,24 @@ export default function AngkatanDetailPage() {
         setHasMore(targetPage < (res.meta?.totalPages || 1));
         setPage(targetPage);
       } catch (err) {
-        console.error(err);
+        if (err?.name !== 'CanceledError' && err?.code !== 'ERR_CANCELED') {
+          console.error(err);
+        }
       } finally {
-        setLoadingPhotos(false);
+        if (!signal?.aborted) {
+          setLoadingPhotos(false);
+        }
       }
     },
-    [angkatan?.id, selectedAlbumId, searchKeyword]
+    [angkatan?.id, selectedAlbumId, debouncedSearch]
   );
 
   useEffect(() => {
-    if (angkatan?.id) {
-      fetchPhotos(1, false);
-    }
-  }, [angkatan?.id, selectedAlbumId, searchKeyword, fetchPhotos]);
+    if (!angkatan?.id) return undefined;
+    const controller = new AbortController();
+    fetchPhotos(1, false, controller.signal);
+    return () => controller.abort();
+  }, [angkatan?.id, selectedAlbumId, debouncedSearch, fetchPhotos]);
 
   // Cek deep link photo dari URL (?photo=12)
   useEffect(() => {
@@ -147,17 +154,19 @@ export default function AngkatanDetailPage() {
     setSelectedPhotoId(photo.id);
     setLightboxOpen(true);
     setSearchParams((prev) => {
-      prev.set('photo', String(photo.id));
-      return prev;
+      const next = new URLSearchParams(prev);
+      next.set('photo', String(photo.id));
+      return next;
     });
   };
 
   const handleCloseLightbox = () => {
     setLightboxOpen(false);
     setSearchParams((prev) => {
-      prev.delete('photo');
-      return prev;
-    });
+      const next = new URLSearchParams(prev);
+      next.delete('photo');
+      return next;
+    }, { replace: true });
   };
 
   const handlePhotoUpdated = (patch) => {
@@ -508,9 +517,10 @@ export default function AngkatanDetailPage() {
         onNavigate={(id) => {
           setSelectedPhotoId(id);
           setSearchParams((prev) => {
-            prev.set('photo', String(id));
-            return prev;
-          });
+            const next = new URLSearchParams(prev);
+            next.set('photo', String(id));
+            return next;
+          }, { replace: true });
         }}
         onPhotoUpdated={handlePhotoUpdated}
         onPhotoDeleted={handlePhotoDeleted}
@@ -709,7 +719,7 @@ export default function AngkatanDetailPage() {
         title={`Hapus Album "${albumToDelete?.name}"?`}
         message={`Apakah Anda yakin ingin menghapus album "${albumToDelete?.name}"? Foto-foto di dalam album ini (${albumToDelete?.photo_count || 0} foto) TIDAK akan terhapus, melainkan tetap tersimpan di galeri angkatan.`}
         confirmText="Hapus Album"
-        confirmColor="error"
+        color="error"
         loading={deletingAlbum}
         onConfirm={handleDeleteAlbum}
         onClose={() => !deletingAlbum && setAlbumToDelete(null)}
