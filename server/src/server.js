@@ -2,13 +2,13 @@
 import app from './app.js';
 import { env } from './config/env.js';
 import { testDbConnection, pool } from './config/db.js';
-import { initCronJobs } from './utils/cronJobs.js';
+import { initCronJobs, stopCronJobs } from './utils/cronJobs.js';
 
 const startServer = async () => {
   try {
     await testDbConnection();
 
-    // Inisialisasi background tasks / cron jobs (pengingat deadline)
+    // Inisialisasi background tasks / cron jobs (pembersihan token kadaluarsa)
     initCronJobs();
 
     const server = app.listen(env.port, () => {
@@ -17,6 +17,7 @@ const startServer = async () => {
 
     const shutdown = async (signal) => {
       console.log(`\n[${signal}] Menutup server dan koneksi database...`);
+      await stopCronJobs();
       server.close(async () => {
         await pool.end();
         process.exit(0);

@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 export const createAngkatanSchema = z.object({
   year: z.coerce.number().int().min(1996).max(2035),
-  title: z.string().min(3, 'Judul angkatan minimal 3 karakter').max(100),
+  title: z.string().trim().min(3, 'Judul angkatan minimal 3 karakter').max(100),
+  description: z.string().max(1000).optional().nullable(),
+});
+
+export const updateAngkatanSchema = z.object({
+  title: z.string().trim().min(3, 'Judul angkatan minimal 3 karakter').max(100).optional(),
   description: z.string().max(1000).optional().nullable(),
 });
 

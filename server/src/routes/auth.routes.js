@@ -8,6 +8,7 @@ import {
   getMe,
   forgotPassword,
   resetPassword,
+  changePassword,
 } from '../controllers/auth.controller.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
@@ -17,6 +18,7 @@ import {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
 } from '../validators/auth.validator.js';
 
 const router = Router();
@@ -26,6 +28,7 @@ router.post('/login', authLimiter, validate(loginSchema), login);
 router.post('/refresh', refresh);
 router.post('/logout', logout);
 router.get('/me', authenticate, getMe);
+router.patch('/change-password', authenticate, validate(changePasswordSchema), changePassword);
 router.post('/forgot-password', authLimiter, validate(forgotPasswordSchema), forgotPassword);
 router.post('/reset-password', authLimiter, validate(resetPasswordSchema), resetPassword);
 

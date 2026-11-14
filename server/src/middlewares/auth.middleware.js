@@ -40,7 +40,7 @@ export const authenticate = asyncHandler(async (req, _res, next) => {
 });
 
 /**
- * Middleware opsional: mengisi req.user jika ada token valid (berguna untuk cek is_liked_by_me di galeri publik)
+ * Middleware opsional: mengisi req.user jika ada token valid DAN status akun aktif di DB
  */
 export const optionalAuth = asyncHandler(async (req, _res, next) => {
   const authHeader = req.headers.authorization;
@@ -52,7 +52,12 @@ export const optionalAuth = asyncHandler(async (req, _res, next) => {
   try {
     const token = authHeader.split(' ')[1];
     const decoded = verifyAccessToken(token);
-    req.user = { id: decoded.id, role: decoded.role };
+    const [rows] = await pool.execute(
+      'SELECT id, nim, full_name, role, status, prodi, angkatan_year FROM users WHERE id = ? LIMIT 1',
+      [decoded.id]
+    );
+    const user = rows[0];
+    req.user = user && user.status === 'active' ? user : null;
   } catch {
     req.user = null;
   }

@@ -1,27 +1,6 @@
 // FILE: server/src/middlewares/validate.middleware.js
 import { AppError } from '../utils/AppError.js';
-
-/**
- * Membersihkan string dari tag script berbahaya (sanitasi XSS dasar)
- */
-const sanitizeValue = (val) => {
-  if (typeof val === 'string') {
-    return val
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .trim();
-  }
-  if (Array.isArray(val)) {
-    return val.map(sanitizeValue);
-  }
-  if (val !== null && typeof val === 'object') {
-    const cleaned = {};
-    for (const key of Object.keys(val)) {
-      cleaned[key] = sanitizeValue(val[key]);
-    }
-    return cleaned;
-  }
-  return val;
-};
+import { sanitizeValue } from '../utils/sanitize.js';
 
 export const sanitizeRequest = (req, _res, next) => {
   if (req.body) req.body = sanitizeValue(req.body);
@@ -31,11 +10,12 @@ export const sanitizeRequest = (req, _res, next) => {
 };
 
 /**
- * Validasi input request menggunakan skema Zod
+ * Validasi input request menggunakan skema Zod (sekaligus membersihkan string pasca-Multer)
  */
 export const validate = (schema, source = 'body') => {
   return (req, _res, next) => {
-    const result = schema.safeParse(req[source]);
+    const sanitizedInput = sanitizeValue(req[source]);
+    const result = schema.safeParse(sanitizedInput);
     if (!result.success) {
       const formattedErrors = result.error.issues.map((issue) => ({
         field: issue.path.join('.'),

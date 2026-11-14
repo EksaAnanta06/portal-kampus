@@ -1,6 +1,7 @@
 // FILE: server/src/services/auth.service.js
 import bcrypt from 'bcrypt';
 import crypto from 'crypto';
+import { pool } from '../config/db.js';
 import { env } from '../config/env.js';
 import { sendMailOrLog } from '../config/mailer.js';
 import { AppError } from '../utils/AppError.js';
@@ -13,10 +14,12 @@ import {
 import {
   findUserByEmailOrNim,
   findUserById,
+  findUserAuthById,
   createUserRecord,
   saveRefreshToken,
-  findValidRefreshToken,
+  findRefreshTokenByHash,
   revokeRefreshTokenByHash,
+  revokeAllUserRefreshTokens,
   createPasswordResetToken,
   findValidPasswordReset,
   markPasswordResetUsed,
@@ -40,8 +43,7 @@ export const registerUserService = async (payload) => {
     password_hash,
   });
 
-  const newUser = await findUserById(userId);
-  return newUser;
+  return findUserById(userId);
 };
 
 export const loginUserService = async ({ identifier, password, userAgent, ipAddress }) => {
@@ -99,32 +101,59 @@ export const rotateRefreshTokenService = async ({ oldRefreshToken, userAgent, ip
   }
 
   const oldTokenHash = hashToken(oldRefreshToken);
-  const storedToken = await findValidRefreshToken(oldTokenHash);
+  const storedToken = await findRefreshTokenByHash(oldTokenHash);
+
   if (!storedToken) {
     throw new AppError('Sesi refresh token tidak lagi berlaku.', 401);
   }
 
-  await revokeRefreshTokenByHash(oldTokenHash);
-
-  const user = await findUserById(decoded.id);
-  if (!user || user.status !== 'active') {
-    throw new AppError('Akun pengguna tidak aktif.', 403);
+  // Deteksi replay/reuse refresh token yang sudah dicabut -> cabut seluruh sesi pengguna
+  if (storedToken.revoked_at !== null) {
+    await revokeAllUserRefreshTokens(storedToken.user_id);
+    throw new AppError('Aktivitas sesi mencurigakan terdeteksi. Silakan login kembali.', 401);
   }
 
-  const tokenPayload = { id: user.id, role: user.role, nim: user.nim };
-  const newAccessToken = generateAccessToken(tokenPayload);
-  const newRefreshToken = generateRefreshToken(tokenPayload);
+  if (new Date(storedToken.expires_at) <= new Date()) {
+    throw new AppError('Sesi telah kedaluwarsa, silakan login kembali.', 401);
+  }
 
-  const expiresAt = new Date(Date.now() + env.jwt.refreshCookieMaxAge);
-  await saveRefreshToken({
-    userId: user.id,
-    tokenHash: hashToken(newRefreshToken),
-    userAgent,
-    ipAddress,
-    expiresAt,
-  });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
 
-  return { user, accessToken: newAccessToken, refreshToken: newRefreshToken };
+    await revokeRefreshTokenByHash(oldTokenHash, connection);
+
+    const user = await findUserById(decoded.id, connection);
+    if (!user || user.status !== 'active') {
+      await revokeAllUserRefreshTokens(decoded.id, connection);
+      await connection.commit();
+      throw new AppError('Akun pengguna tidak aktif.', 403);
+    }
+
+    const tokenPayload = { id: user.id, role: user.role, nim: user.nim };
+    const newAccessToken = generateAccessToken(tokenPayload);
+    const newRefreshToken = generateRefreshToken(tokenPayload);
+    const expiresAt = new Date(Date.now() + env.jwt.refreshCookieMaxAge);
+
+    await saveRefreshToken(
+      {
+        userId: user.id,
+        tokenHash: hashToken(newRefreshToken),
+        userAgent,
+        ipAddress,
+        expiresAt,
+      },
+      connection
+    );
+
+    await connection.commit();
+    return { user, accessToken: newAccessToken, refreshToken: newRefreshToken };
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
 };
 
 export const forgotPasswordService = async (email) => {
@@ -155,21 +184,88 @@ export const forgotPasswordService = async (email) => {
            <p><a href="${resetUrl}">${resetUrl}</a></p>`,
   });
 
+  // Token hanya dikirim lewat SMTP / log server; jangan bocorkan via HTTP kecuali opt-in eksplisit saat dev
   return {
     sent: true,
-    ...(env.nodeEnv !== 'production' ? { dev_reset_token: rawResetToken, dev_reset_url: resetUrl } : {}),
+    ...(env.security.allowDevResetTokenResponse
+      ? { dev_reset_token: rawResetToken, dev_reset_url: resetUrl }
+      : {}),
   };
 };
 
 export const resetPasswordService = async ({ token, password }) => {
   const tokenHash = hashToken(token);
-  const resetRecord = await findValidPasswordReset(tokenHash);
+  const connection = await pool.getConnection();
 
-  if (!resetRecord) {
-    throw new AppError('Token reset password tidak valid atau sudah kedaluwarsa.', 400);
+  try {
+    await connection.beginTransaction();
+
+    const resetRecord = await findValidPasswordReset(tokenHash, connection);
+    if (!resetRecord) {
+      throw new AppError('Token reset password tidak valid atau sudah kedaluwarsa.', 400);
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    await updateUserPassword(resetRecord.user_id, passwordHash, connection);
+    await markPasswordResetUsed(resetRecord.id, connection);
+
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+};
+
+export const changePasswordService = async ({
+  userId,
+  currentPassword,
+  newPassword,
+  userAgent,
+  ipAddress,
+}) => {
+  if (currentPassword === newPassword) {
+    throw new AppError('Password baru harus berbeda dengan password saat ini.', 400);
   }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  await updateUserPassword(resetRecord.user_id, passwordHash);
-  await markPasswordResetUsed(resetRecord.id);
+  const authUser = await findUserAuthById(userId);
+  if (!authUser || authUser.status !== 'active') {
+    throw new AppError('Akun tidak ditemukan atau tidak aktif.', 403);
+  }
+
+  const isMatch = await bcrypt.compare(currentPassword, authUser.password_hash);
+  if (!isMatch) {
+    throw new AppError('Password saat ini tidak sesuai.', 400);
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 10);
+  const tokenPayload = { id: authUser.id, role: authUser.role, nim: authUser.nim };
+  const accessToken = generateAccessToken(tokenPayload);
+  const refreshToken = generateRefreshToken(tokenPayload);
+  const expiresAt = new Date(Date.now() + env.jwt.refreshCookieMaxAge);
+
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    await updateUserPassword(userId, passwordHash, connection);
+    await saveRefreshToken(
+      {
+        userId,
+        tokenHash: hashToken(refreshToken),
+        userAgent,
+        ipAddress,
+        expiresAt,
+      },
+      connection
+    );
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
+  }
+
+  return { accessToken, refreshToken };
 };

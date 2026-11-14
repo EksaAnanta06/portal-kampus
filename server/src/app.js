@@ -11,6 +11,10 @@ import apiRoutes from './routes/index.js';
 
 const app = express();
 
+if (env.security.trustProxy !== false) {
+  app.set('trust proxy', env.security.trustProxy);
+}
+
 // Logger Aktivitas Pengunjung (Mendeteksi Real IP dari Cloudflare/Tunnel & Device)
 app.use((req, res, next) => {
   const start = Date.now();
@@ -46,11 +50,21 @@ app.use(
 );
 
 // 2. CORS Whitelist Origin dengan dukungan Cookie (credentials: true)
-const allowedOrigins = env.clientUrl.split(',').map((url) => url.trim());
+const defaultDevOrigins =
+  env.nodeEnv === 'development' ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : [];
+const allowedOrigins = Array.from(
+  new Set([
+    ...env.clientUrl
+      .split(',')
+      .map((url) => url.trim())
+      .filter(Boolean),
+    ...defaultDevOrigins,
+  ])
+);
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || env.nodeEnv === 'development' || allowedOrigins.includes(origin)) {
+      if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`Origin ${origin} tidak diizinkan oleh kebijakan CORS.`));

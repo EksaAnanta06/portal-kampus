@@ -10,6 +10,7 @@ import {
   rotateRefreshTokenService,
   forgotPasswordService,
   resetPasswordService,
+  changePasswordService,
 } from '../services/auth.service.js';
 
 const REFRESH_COOKIE_NAME = 'pasim_refresh_token';
@@ -104,5 +105,23 @@ export const resetPassword = asyncHandler(async (req, res) => {
   await resetPasswordService(req.body);
   return sendResponse(res, {
     message: 'Password berhasil diperbarui! Silakan login dengan password baru Anda.',
+  });
+});
+
+export const changePassword = asyncHandler(async (req, res) => {
+  const { current_password, new_password } = req.body;
+  const { accessToken, refreshToken } = await changePasswordService({
+    userId: req.user.id,
+    currentPassword: current_password,
+    newPassword: new_password,
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+  });
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+
+  return sendResponse(res, {
+    message: 'Password akun berhasil diubah. Sesi perangkat lain telah dicabut.',
+    data: { accessToken },
   });
 });
