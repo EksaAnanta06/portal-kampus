@@ -27,13 +27,11 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
-import OpenInFullRoundedIcon from '@mui/icons-material/OpenInFullRounded';
 import materialApi from '../../api/material.api';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
 import ReportMaterialModal from '../../components/academic/ReportMaterialModal';
 import YoutubePlayer from '../../components/academic/YoutubePlayer';
-import PdfViewerModal from '../../components/academic/PdfViewerModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import {
   ALLOWED_DOC_ACCEPT,
@@ -71,7 +69,6 @@ export default function MaterialDetailPage() {
   const [newComment, setNewComment] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
   const [openReport, setOpenReport] = useState(false);
-  const [openPdfModal, setOpenPdfModal] = useState(false);
 
   // Versioning Upload
   const [showVersionUpload, setShowVersionUpload] = useState(false);
@@ -319,10 +316,6 @@ export default function MaterialDetailPage() {
     );
   }
 
-  // Cari file PDF pertama untuk preview in-page
-  const pdfFile = material.files?.find(
-    (f) => f.file_format === 'pdf' || f.file_name?.toLowerCase().endsWith('.pdf')
-  );
   const resolvedYoutubeId = material.youtube_video_id || extractYoutubeVideoId(material.youtube_url);
   const statusLabel = MATERIAL_STATUS_LABELS[material.status] || material.status?.toUpperCase();
   const typeLabel = MATERIAL_TYPE_LABELS[material.tipe_materi] || material.tipe_materi;
@@ -560,42 +553,6 @@ export default function MaterialDetailPage() {
         </div>
       )}
 
-      {/* Pratinjau PDF In-Page */}
-      {pdfFile && (
-        <div className="mt-6 sm:mt-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-navy-800">
-          <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">
-              Pratinjau Dokumen PDF
-            </h3>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setOpenPdfModal(true)}
-                className="inline-flex min-h-[40px] items-center gap-1 rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:text-emerald-300"
-              >
-                <OpenInFullRoundedIcon sx={{ fontSize: 15 }} />
-                <span>Layar Penuh</span>
-              </button>
-              <a
-                href={pdfFile.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[40px] items-center px-2 text-xs font-bold text-slate-500 hover:text-emerald-600 hover:underline dark:text-slate-400"
-              >
-                Tab Baru ↗
-              </a>
-            </div>
-          </div>
-          <div className="h-[55dvh] sm:h-[600px] w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
-            <iframe
-              src={`${pdfFile.file_url}#toolbar=0`}
-              title="PDF Viewer"
-              className="h-full w-full border-0"
-            />
-          </div>
-        </div>
-      )}
-
       {/* Berkas Lampiran Materi & Riwayat Versi */}
       <div className="mt-6 sm:mt-8 rounded-3xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm dark:border-slate-800 dark:bg-navy-800">
         <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
@@ -729,6 +686,7 @@ export default function MaterialDetailPage() {
                     href={v.file_url}
                     target="_blank"
                     rel="noopener noreferrer"
+                    download
                     onClick={handleTrackDownload}
                     className="shrink-0 text-emerald-600 font-semibold hover:underline"
                   >
@@ -812,16 +770,6 @@ export default function MaterialDetailPage() {
           )}
         </div>
       </div>
-
-      {/* Modal Pratinjau PDF Layar Penuh */}
-      {pdfFile && (
-        <PdfViewerModal
-          open={openPdfModal}
-          onClose={() => setOpenPdfModal(false)}
-          fileUrl={pdfFile.file_url}
-          title={pdfFile.file_name || material.judul}
-        />
-      )}
 
       {/* Modal Laporkan Materi */}
       <ReportMaterialModal
