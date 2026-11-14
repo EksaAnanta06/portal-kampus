@@ -3,6 +3,7 @@ import app from './app.js';
 import { env } from './config/env.js';
 import { testDbConnection, pool } from './config/db.js';
 import { initCronJobs, stopCronJobs } from './utils/cronJobs.js';
+import { registerGracefulShutdown } from './utils/gracefulShutdown.js';
 
 const startServer = async () => {
   try {
@@ -15,17 +16,11 @@ const startServer = async () => {
       console.log(`🚀 [SERVER] Portal Kampus UNAS PASIM berjalan di http://localhost:${env.port}/api/v1`);
     });
 
-    const shutdown = async (signal) => {
-      console.log(`\n[${signal}] Menutup server dan koneksi database...`);
-      await stopCronJobs();
-      server.close(async () => {
-        await pool.end();
-        process.exit(0);
-      });
-    };
-
-    process.on('SIGINT', () => shutdown('SIGINT'));
-    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    registerGracefulShutdown({
+      server,
+      stopBackgroundJobs: stopCronJobs,
+      closeDatabase: () => pool.end(),
+    });
   } catch (error) {
     console.error('❌ [FATAL] Gagal menjalankan server:', error.message);
     process.exit(1);
