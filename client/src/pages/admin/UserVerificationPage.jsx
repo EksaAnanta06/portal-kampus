@@ -30,6 +30,7 @@ import EmptyState from '../../components/common/EmptyState';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import useDebounce from '../../hooks/useDebounce';
 import {
+  ROLE_COLORS,
   ROLE_LABELS,
   USER_STATUS_COLORS,
   USER_STATUS_LABELS,
@@ -327,7 +328,12 @@ export default function UserVerificationPage() {
                     <div className="text-muted text-[11px]">Angkatan {u.angkatan_year || '-'}</div>
                   </TableCell>
                   <TableCell>
-                    <Chip size="small" label={ROLE_LABELS[u.role] || u.role} variant="outlined" />
+                    <Chip
+                      size="small"
+                      label={ROLE_LABELS[u.role] || u.role}
+                      color={ROLE_COLORS[u.role] || 'default'}
+                      variant="outlined"
+                    />
                   </TableCell>
                   <TableCell>
                     <Chip
