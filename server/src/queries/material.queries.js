@@ -1,373 +1,17 @@
 // FILE: server/src/queries/material.queries.js
 import { pool } from '../config/db.js';
 
-let isAcademicSchemaChecked = false;
-
-export const ensureAcademicSchema = async () => {
-  if (isAcademicSchemaChecked) return;
-  try {
-    // 1. Pastikan tabel prodi ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS prodi (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        kode VARCHAR(20) NOT NULL UNIQUE,
-        nama VARCHAR(100) NOT NULL,
-        jenjang ENUM('D3', 'S1', 'S2') NOT NULL DEFAULT 'S1',
-        fakultas VARCHAR(100) NOT NULL DEFAULT 'Fakultas Ilmu Komputer & Desain',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // Isi seeder prodi jika kosong
-    const [pCount] = await pool.query('SELECT COUNT(*) as c FROM prodi');
-    if (pCount[0]?.c === 0) {
-      await pool.query(`
-        INSERT IGNORE INTO prodi (id, kode, nama, jenjang, fakultas) VALUES
-        (1, 'TIF', 'Teknik Informatika', 'S1', 'Fakultas Ilmu Komputer & Desain'),
-        (2, 'SI', 'Sistem Informasi', 'S1', 'Fakultas Ilmu Komputer & Desain'),
-        (3, 'MNJ', 'Manajemen', 'S1', 'Fakultas Ekonomi & Bisnis'),
-        (4, 'AKT', 'Akuntansi', 'S1', 'Fakultas Ekonomi & Bisnis'),
-        (5, 'KOM', 'Ilmu Komunikasi', 'S1', 'Fakultas Ilmu Sosial & Humaniora');
-      `);
-    }
-
-    // 2. Pastikan tabel mata_kuliah ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS mata_kuliah (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        kode VARCHAR(20) NOT NULL UNIQUE,
-        nama VARCHAR(150) NOT NULL,
-        sks TINYINT UNSIGNED NOT NULL DEFAULT 3,
-        prodi_id INT UNSIGNED NULL,
-        semester_rekomendasi TINYINT UNSIGNED NOT NULL DEFAULT 1,
-        deskripsi TEXT NULL,
-        status ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved',
-        proposed_by INT UNSIGNED NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // Verifikasi kolom di mata_kuliah
-    const [cols] = await pool.query(
-      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'mata_kuliah'`
-    );
-    const colNames = cols.map((c) => c.COLUMN_NAME);
-
-    if (!colNames.includes('prodi_id')) {
-      await pool.query('ALTER TABLE mata_kuliah ADD COLUMN prodi_id INT UNSIGNED NULL AFTER sks');
-    }
-    if (!colNames.includes('semester_rekomendasi')) {
-      await pool.query(
-        'ALTER TABLE mata_kuliah ADD COLUMN semester_rekomendasi TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER prodi_id'
-      );
-      if (colNames.includes('semester_paket')) {
-        await pool.query(
-          'UPDATE mata_kuliah SET semester_rekomendasi = COALESCE(semester_paket, 1) WHERE semester_paket IS NOT NULL'
-        );
-      }
-    }
-    if (!colNames.includes('status')) {
-      await pool.query(
-        `ALTER TABLE mata_kuliah ADD COLUMN status ENUM('approved', 'pending', 'rejected') NOT NULL DEFAULT 'approved' AFTER deskripsi`
-      );
-    }
-    if (!colNames.includes('proposed_by')) {
-      await pool.query('ALTER TABLE mata_kuliah ADD COLUMN proposed_by INT UNSIGNED NULL AFTER status');
-    }
-
-    // Normalisasi data existing jika ada kolom NULL atau 0
-    await pool.query('UPDATE mata_kuliah SET prodi_id = 1 WHERE prodi_id IS NULL');
-    await pool.query(
-      'UPDATE mata_kuliah SET semester_rekomendasi = 1 WHERE semester_rekomendasi IS NULL OR semester_rekomendasi = 0'
-    );
-
-    // Seeder MK kurikulum 1-8 prodi lengkap (INSERT IGNORE aman tanpa duplikasi)
-    await pool.query(`
-      INSERT IGNORE INTO mata_kuliah (kode, nama, sks, prodi_id, semester_rekomendasi, deskripsi, status) VALUES
-      ('IF1101', 'Dasar Pemrograman & Logika', 3, 1, 1, 'Pengenalan logika algoritma, tipe data, percabangan, perulangan, dan fungsi.', 'approved'),
-      ('IF1102', 'Matematika Diskrit', 3, 1, 1, 'Himpunan, logika proposisional, relasi fungsi, dan graf.', 'approved'),
-      ('IF1103', 'Pengantar Teknologi Informasi', 2, 1, 1, 'Konsep sistem komputer, hardware, software, dan internet.', 'approved'),
-      ('IF1201', 'Struktur Data & Algoritma', 3, 1, 2, 'Array, stack, queue, linked list, tree, graph, sorting & searching.', 'approved'),
-      ('IF1202', 'Arsitektur & Organisasi Komputer', 3, 1, 2, 'Struktur CPU, memori, instruksi set, dan pipeline.', 'approved'),
-      ('IF2101', 'Pemrograman Berorientasi Objek', 3, 1, 3, 'OOP, class, object, inheritance, polymorphism, encapsulation.', 'approved'),
-      ('IF2102', 'Sistem Basis Data', 3, 1, 3, 'Model data relasional, ERD, normalisasi, dan SQL query.', 'approved'),
-      ('IF2201', 'Pemrograman Web Lanjut', 3, 1, 4, 'Full-stack web modern, REST API, Node.js, Express, dan React.', 'approved'),
-      ('IF2202', 'Rekayasa Perangkat Lunak', 3, 1, 4, 'SDLC, Agile Scrum, requirement analysis, UML, dan software testing.', 'approved'),
-      ('IF3101', 'Kecerdasan Buatan', 3, 1, 5, 'Search algorithm, machine learning dasar, neural network, dan NLP.', 'approved'),
-      ('IF3102', 'Jaringan Komputer & Keamanan', 3, 1, 5, 'OSI Layer, TCP/IP, subnetting, routing, firewall, dan kriptografi.', 'approved'),
-      ('IF3201', 'Pengembangan Aplikasi Mobile', 3, 1, 6, 'Android, React Native/Flutter, state management, dan mobile UI.', 'approved'),
-      ('IF4101', 'Metodologi Penelitian & Skripsi', 2, 1, 7, 'Penyusunan proposal skripsi, kajian literatur, dan etika penelitian.', 'approved'),
-      ('IF4201', 'Tugas Akhir / Skripsi', 6, 1, 8, 'Implementasi dan sidang tugas akhir kesarjanaan.', 'approved'),
-      ('SI1101', 'Pengantar Sistem Informasi', 3, 2, 1, 'Konsep dasar SI dalam organisasi dan transformasi proses bisnis.', 'approved'),
-      ('SI2101', 'Analisis & Perancangan Sistem', 3, 2, 3, 'DFD, UML, BPMN, dan analisis kebutuhan pengguna.', 'approved'),
-      ('MN1101', 'Pengantar Manajemen & Bisnis', 3, 3, 1, 'Prinsip dasar manajemen, kepemimpinan, dan fungsi bisnis.', 'approved'),
-      ('AK1101', 'Pengantar Akuntansi 1', 3, 4, 1, 'Siklus akuntansi perusahaan jasa dan dagang.', 'approved');
-    `);
-
-    // 3. Pastikan tabel materi ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        mata_kuliah_id INT UNSIGNED NOT NULL,
-        uploaded_by INT UNSIGNED NOT NULL,
-        judul VARCHAR(255) NOT NULL,
-        tipe_materi ENUM(
-          'ringkasan_catatan',
-          'slide',
-          'modul',
-          'soal_latihan',
-          'video',
-          'kode_referensi',
-          'tips_belajar',
-          'lainnya'
-        ) NOT NULL DEFAULT 'ringkasan_catatan',
-        deskripsi TEXT NULL,
-        tags VARCHAR(255) NULL,
-        tahun_akademik VARCHAR(20) NULL,
-        angkatan_kontributor VARCHAR(10) NULL,
-        dosen_pengampu_teks VARCHAR(150) NULL,
-        sumber_kredit VARCHAR(255) NULL,
-        external_url VARCHAR(500) NULL,
-        youtube_video_id VARCHAR(50) NULL,
-        is_published TINYINT(1) NOT NULL DEFAULT 1,
-        status ENUM('pending', 'approved', 'rejected', 'takedown') NOT NULL DEFAULT 'pending',
-        moderated_by INT UNSIGNED NULL,
-        moderated_at TIMESTAMP NULL,
-        moderation_note TEXT NULL,
-        view_count INT UNSIGNED NOT NULL DEFAULT 0,
-        download_count INT UNSIGNED NOT NULL DEFAULT 0,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 4. Pastikan tabel materi_file ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_file (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        materi_id INT UNSIGNED NOT NULL,
-        file_url VARCHAR(500) NOT NULL,
-        public_id VARCHAR(255) NULL,
-        file_name VARCHAR(255) NOT NULL,
-        file_size INT UNSIGNED NOT NULL DEFAULT 0,
-        file_format VARCHAR(20) NULL,
-        urutan INT NOT NULL DEFAULT 1,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 5. Pastikan tabel materi_version ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_version (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        materi_id INT UNSIGNED NOT NULL,
-        version_num INT UNSIGNED NOT NULL DEFAULT 1,
-        file_url VARCHAR(500) NOT NULL,
-        file_name VARCHAR(255) NOT NULL,
-        file_size INT UNSIGNED NULL,
-        changelog_note VARCHAR(255) NULL,
-        created_by INT UNSIGNED NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 6. Pastikan tabel materi_vote ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_vote (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        materi_id INT UNSIGNED NOT NULL,
-        user_id INT UNSIGNED NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_materi_user_vote (materi_id, user_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 7. Pastikan tabel materi_komentar ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_komentar (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        materi_id INT UNSIGNED NOT NULL,
-        user_id INT UNSIGNED NOT NULL,
-        parent_id INT UNSIGNED NULL,
-        konten TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 8. Pastikan tabel materi_koleksi & item ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_koleksi (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id INT UNSIGNED NOT NULL,
-        nama VARCHAR(100) NOT NULL,
-        deskripsi VARCHAR(255) NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_koleksi_item (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        koleksi_id INT UNSIGNED NOT NULL,
-        materi_id INT UNSIGNED NOT NULL,
-        added_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_koleksi_materi (koleksi_id, materi_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 9. Pastikan tabel materi_request ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_request (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        user_id INT UNSIGNED NOT NULL,
-        mata_kuliah_id INT UNSIGNED NOT NULL,
-        judul VARCHAR(200) NOT NULL,
-        deskripsi TEXT NULL,
-        tipe_materi_diminta VARCHAR(50) NULL,
-        is_fulfilled TINYINT(1) NOT NULL DEFAULT 0,
-        fulfilled_materi_id INT UNSIGNED NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 10. Pastikan tabel paket_belajar & item ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS paket_belajar (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        prodi_id INT UNSIGNED NOT NULL,
-        semester TINYINT UNSIGNED NOT NULL,
-        judul VARCHAR(150) NOT NULL,
-        deskripsi TEXT NULL,
-        created_by INT UNSIGNED NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS paket_belajar_item (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        paket_belajar_id INT UNSIGNED NOT NULL,
-        materi_id INT UNSIGNED NOT NULL,
-        urutan INT NOT NULL DEFAULT 1,
-        UNIQUE KEY uq_paket_materi (paket_belajar_id, materi_id)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // 11. Pastikan tabel materi_laporan ada
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS materi_laporan (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        materi_id INT UNSIGNED NOT NULL,
-        reporter_id INT UNSIGNED NOT NULL,
-        alasan ENUM('hak_cipta', 'konten_salah_menyesatkan', 'tidak_pantas', 'spam', 'lainnya') NOT NULL,
-        deskripsi TEXT NULL,
-        status ENUM('pending', 'resolved', 'dismissed') NOT NULL DEFAULT 'pending',
-        handled_by INT UNSIGNED NULL,
-        handled_at TIMESTAMP NULL,
-        action_taken ENUM('none', 'takedown', 'dismissed') NOT NULL DEFAULT 'none',
-        takedown_note TEXT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-    `);
-
-    // Seeder contoh materi awal jika repositori masih kosong
-    const [matCount] = await pool.query('SELECT COUNT(*) as c FROM materi');
-    if (matCount[0]?.c === 0) {
-      const [uRows] = await pool.query('SELECT id, angkatan_year FROM users ORDER BY id ASC LIMIT 1');
-      const seedUserId = uRows[0]?.id || 1;
-      const seedAngkatan = uRows[0]?.angkatan_year || '2022';
-
-      const [resMat1] = await pool.query(
-        `INSERT INTO materi (
-          mata_kuliah_id, uploaded_by, judul, tipe_materi, deskripsi, tags,
-          tahun_akademik, angkatan_kontributor, dosen_pengampu_teks, sumber_kredit,
-          external_url, youtube_video_id, is_published, status, view_count, download_count
-        ) VALUES (
-          1, ?, 'Catatan Rangkuman Lengkap Logika & Percabangan C++', 'ringkasan_catatan',
-          'Catatan tulisan tangan rapi + penjelasan sintaks if-else, switch-case, dan ternary operator disertai latihan soal.',
-          'logika,c++,algoritma,catatan', '2024/2025', ?, 'Dr. Ahmad Fauzi, M.Kom', 'Catatan Mandiri Mahasiswa',
-          NULL, NULL, 1, 'approved', 42, 18
-        )`,
-        [seedUserId, seedAngkatan]
-      );
-      const matId1 = resMat1.insertId;
-
-      await pool.query(
-        `INSERT INTO materi_file (materi_id, file_url, public_id, file_name, file_size, file_format, urutan)
-         VALUES (?, 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', 'dummy_pdf_1', 'Rangkuman_Logika_Percabangan_C++.pdf', 145000, 'pdf', 1)`,
-        [matId1]
-      );
-
-      const [resMat2] = await pool.query(
-        `INSERT INTO materi (
-          mata_kuliah_id, uploaded_by, judul, tipe_materi, deskripsi, tags,
-          tahun_akademik, angkatan_kontributor, dosen_pengampu_teks, sumber_kredit,
-          external_url, youtube_video_id, is_published, status, view_count, download_count
-        ) VALUES (
-          1, ?, 'Video Pembahasan Soal Logika & Algoritma Percabangan', 'video',
-          'Video penjelasan step-by-step trace tabel logika percabangan untuk persiapan kuis dan UTS.',
-          'video,youtube,c++,percabangan', '2024/2025', ?, 'Dr. Ahmad Fauzi, M.Kom', 'Channel Belajar Pasim',
-          'https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'dQw4w9WgXcQ', 1, 'approved', 85, 0
-        )`,
-        [seedUserId, seedAngkatan]
-      );
-
-      const [resMat3] = await pool.query(
-        `INSERT INTO materi (
-          mata_kuliah_id, uploaded_by, judul, tipe_materi, deskripsi, tags,
-          tahun_akademik, angkatan_kontributor, dosen_pengampu_teks, sumber_kredit,
-          external_url, youtube_video_id, is_published, status, view_count, download_count
-        ) VALUES (
-          2, ?, 'Kumpulan Latihan Soal Logika Proposisional & Himpunan', 'soal_latihan',
-          'Bank soal latihan mandiri materi himpunan dan tabel kebenaran lengkap dengan kunci pembahasan.',
-          'matdis,himpunan,soal', '2024/2025', ?, 'Siti Nurhaliza, M.T', 'Catatan Kakak Tingkat 2021',
-          NULL, NULL, 1, 'approved', 60, 25
-        )`,
-        [seedUserId, seedAngkatan]
-      );
-      const matId3 = resMat3.insertId;
-
-      await pool.query(
-        `INSERT INTO materi_file (materi_id, file_url, public_id, file_name, file_size, file_format, urutan)
-         VALUES (?, 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', 'dummy_pdf_2', 'Soal_Pembahasan_Matematika_Diskrit.pdf', 210000, 'pdf', 1)`,
-        [matId3]
-      );
-
-      // Starter pack paket belajar semester 1
-      const [resPkg] = await pool.query(
-        `INSERT INTO paket_belajar (prodi_id, semester, judul, deskripsi, created_by)
-         VALUES (1, 1, 'Starter Pack Semester 1 Teknik Informatika', 'Kumpulan materi dasar logika algoritma, matematika diskrit, dan pengantar teknologi informasi untuk mahasiswa baru.', ?)`,
-        [seedUserId]
-      );
-      const pkgId = resPkg.insertId;
-
-      await pool.query(
-        `INSERT INTO paket_belajar_item (paket_belajar_id, materi_id, urutan) VALUES (?, ?, 1), (?, ?, 2)`,
-        [pkgId, matId1, pkgId, matId3]
-      );
-    }
-
-    isAcademicSchemaChecked = true;
-  } catch (err) {
-    console.warn('⚠️ Gagal sinkronisasi skema akademik di queries:', err.message);
-  }
-};
 
 // ============================================================================
 // 1. KATALOG AKADEMIK (PRODI & MATA KULIAH)
 // ============================================================================
 
 export const getProdiListQuery = async () => {
-  await ensureAcademicSchema();
   const [rows] = await pool.query('SELECT * FROM prodi ORDER BY kode ASC');
   return rows;
 };
 
 export const createProdiQuery = async ({ kode, nama, jenjang = 'S1', fakultas }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO prodi (kode, nama, jenjang, fakultas) VALUES (?, ?, ?, ?)',
     [kode, nama, jenjang, fakultas || 'Fakultas Ilmu Komputer & Desain']
@@ -382,7 +26,6 @@ export const getCoursesQuery = async ({
   status = 'approved',
   includeAll = false,
 }) => {
-  await ensureAcademicSchema();
   const params = [];
   const whereClauses = [];
 
@@ -439,7 +82,6 @@ export const getCoursesQuery = async ({
 };
 
 export const getCourseByIdQuery = async (courseId) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       mk.*,
@@ -464,7 +106,6 @@ export const createCourseQuery = async ({
   status = 'approved',
   proposed_by = null,
 }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     `INSERT INTO mata_kuliah (kode, nama, sks, prodi_id, semester_rekomendasi, deskripsi, status, proposed_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -474,7 +115,6 @@ export const createCourseQuery = async ({
 };
 
 export const approveProposedCourseQuery = async (id, status = 'approved') => {
-  await ensureAcademicSchema();
   const [result] = await pool.query('UPDATE mata_kuliah SET status = ? WHERE id = ?', [status, id]);
   return result.affectedRows > 0;
 };
@@ -483,7 +123,6 @@ export const updateCourseQuery = async (
   id,
   { kode, nama, sks, prodi_id, semester_rekomendasi, deskripsi, status }
 ) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     `UPDATE mata_kuliah 
      SET kode = ?, nama = ?, sks = ?, prodi_id = ?, semester_rekomendasi = ?, deskripsi = ?, status = ?
@@ -494,7 +133,6 @@ export const updateCourseQuery = async (
 };
 
 export const deleteCourseQuery = async (id) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query('DELETE FROM mata_kuliah WHERE id = ?', [id]);
   return result.affectedRows > 0;
 };
@@ -515,7 +153,6 @@ export const getMaterialsQuery = async ({
   currentUserId = null,
   role = null,
 }) => {
-  await ensureAcademicSchema();
   const params = [];
   const whereClauses = [];
 
@@ -618,7 +255,6 @@ export const getMaterialsQuery = async ({
 };
 
 export const getMaterialByIdQuery = async (materialId, currentUserId = null) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       m.*,
@@ -699,7 +335,6 @@ export const createMaterialQuery = async ({
   is_published = 1,
   status = 'pending',
 }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     `INSERT INTO materi (
       mata_kuliah_id, uploaded_by, judul, tipe_materi, deskripsi, tags,
@@ -816,7 +451,6 @@ export const moderateMaterialQuery = async (materialId, { status, note, moderato
 // ============================================================================
 
 export const toggleMaterialVoteQuery = async (materialId, userId) => {
-  await ensureAcademicSchema();
   const [existing] = await pool.query(
     'SELECT id FROM materi_vote WHERE materi_id = ? AND user_id = ? LIMIT 1',
     [materialId, userId]
@@ -835,7 +469,6 @@ export const toggleMaterialVoteQuery = async (materialId, userId) => {
 };
 
 export const getMaterialCommentsQuery = async (materialId) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       mk.*,
@@ -853,7 +486,6 @@ export const getMaterialCommentsQuery = async (materialId) => {
 };
 
 export const createMaterialCommentQuery = async ({ materialId, userId, parentId = null, konten }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO materi_komentar (materi_id, user_id, parent_id, konten) VALUES (?, ?, ?, ?)',
     [materialId, userId, parentId, konten]
@@ -873,7 +505,6 @@ export const deleteMaterialCommentQuery = async (commentId, userId, isStaff = fa
 };
 
 export const createMaterialReportQuery = async ({ materialId, reporterId, alasan, deskripsi = '' }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO materi_laporan (materi_id, reporter_id, alasan, deskripsi) VALUES (?, ?, ?, ?)',
     [materialId, reporterId, alasan, deskripsi]
@@ -882,7 +513,6 @@ export const createMaterialReportQuery = async ({ materialId, reporterId, alasan
 };
 
 export const getMaterialReportsQuery = async () => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       ml.*,
@@ -934,7 +564,6 @@ export const handleMaterialReportQuery = async (reportId, { action, takedownNote
  * Poin = (Materi Approved * 20) + (Total Helpful Votes * 5)
  */
 export const getContributorsLeaderboardQuery = async (limit = 15) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       u.id AS user_id,
@@ -962,7 +591,6 @@ export const getContributorsLeaderboardQuery = async (limit = 15) => {
 // ============================================================================
 
 export const getUserCollectionsQuery = async (userId) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       mk.*,
@@ -978,7 +606,6 @@ export const getUserCollectionsQuery = async (userId) => {
 };
 
 export const createCollectionQuery = async (userId, nama, deskripsi = '') => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO materi_koleksi (user_id, nama, deskripsi) VALUES (?, ?, ?)',
     [userId, nama, deskripsi]
@@ -987,7 +614,6 @@ export const createCollectionQuery = async (userId, nama, deskripsi = '') => {
 };
 
 export const toggleCollectionItemQuery = async (koleksiId, materiId) => {
-  await ensureAcademicSchema();
   const [existing] = await pool.query(
     'SELECT id FROM materi_koleksi_item WHERE koleksi_id = ? AND materi_id = ? LIMIT 1',
     [koleksiId, materiId]
@@ -1018,7 +644,6 @@ export const deleteCollectionQuery = async (koleksiId, userId) => {
 // ============================================================================
 
 export const getMaterialRequestsQuery = async ({ prodiId = null, mataKuliahId = null, search = '' }) => {
-  await ensureAcademicSchema();
   const params = [];
   const whereClauses = [];
 
@@ -1070,7 +695,6 @@ export const createMaterialRequestQuery = async ({
   deskripsi = '',
   tipe_materi_diminta = '',
 }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO materi_request (user_id, mata_kuliah_id, judul, deskripsi, tipe_materi_diminta) VALUES (?, ?, ?, ?, ?)',
     [userId, mataKuliahId, judul, deskripsi, tipe_materi_diminta]
@@ -1079,7 +703,6 @@ export const createMaterialRequestQuery = async ({
 };
 
 export const fulfillMaterialRequestQuery = async (requestId, fulfilledMateriId) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'UPDATE materi_request SET is_fulfilled = 1, fulfilled_materi_id = ? WHERE id = ?',
     [fulfilledMateriId, requestId]
@@ -1092,7 +715,6 @@ export const fulfillMaterialRequestQuery = async (requestId, fulfilledMateriId) 
 // ============================================================================
 
 export const getLearningPackagesQuery = async ({ prodiId = null, semester = null }) => {
-  await ensureAcademicSchema();
   const params = [];
   const whereClauses = [];
 
@@ -1127,7 +749,6 @@ export const getLearningPackagesQuery = async ({ prodiId = null, semester = null
 };
 
 export const getLearningPackageDetailQuery = async (packageId) => {
-  await ensureAcademicSchema();
   const [rows] = await pool.query(
     `SELECT pb.*, p.kode AS prodi_kode, p.nama AS prodi_nama, u.full_name AS creator_nama
      FROM paket_belajar pb
@@ -1169,7 +790,6 @@ export const createLearningPackageQuery = async ({
   created_by,
   materialIds = [],
 }) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query(
     'INSERT INTO paket_belajar (prodi_id, semester, judul, deskripsi, created_by) VALUES (?, ?, ?, ?, ?)',
     [prodi_id, semester, judul, deskripsi, created_by]
@@ -1188,7 +808,6 @@ export const createLearningPackageQuery = async ({
 };
 
 export const deleteLearningPackageQuery = async (packageId) => {
-  await ensureAcademicSchema();
   const [result] = await pool.query('DELETE FROM paket_belajar WHERE id = ?', [packageId]);
   return result.affectedRows > 0;
 };
@@ -1198,7 +817,6 @@ export const deleteLearningPackageQuery = async (packageId) => {
 // ============================================================================
 
 export const getApprovedMaterialsForCourseDownload = async (courseId) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       m.id AS materi_id,
@@ -1225,7 +843,6 @@ export const getApprovedMaterialsForCourseDownload = async (courseId) => {
 };
 
 export const getApprovedMaterialsForPackageDownload = async (packageId) => {
-  await ensureAcademicSchema();
   const sql = `
     SELECT
       m.id AS materi_id,

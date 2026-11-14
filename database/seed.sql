@@ -98,19 +98,19 @@ INSERT INTO photos (
  'Persiapan panitia bazaar kewirausahaan mahasiswa di halaman depan kampus (Menunggu persetujuan moderator).', 'bazaar,wirausaha,kampus',
  '2026-10-25', 'pending', 4, 2, 5, NULL, NULL);
 
--- 5. SEED PHOTO LIKES
+-- 5. SEED PHOTO LIKES (mereferensikan photos.id = 5, 6, 7, 9 yang valid)
 INSERT INTO photo_likes (photo_id, user_id) VALUES
-(1, 1), (1, 2), (1, 4), (1, 5),
-(2, 1), (2, 3), (2, 4),
-(3, 1), (3, 2), (3, 3), (3, 5),
-(5, 2), (5, 4);
+(5, 1), (5, 2), (5, 4), (5, 5),
+(6, 1), (6, 3), (6, 4),
+(7, 1), (7, 2), (7, 3), (7, 5),
+(9, 2), (9, 4);
 
--- 6. SEED PHOTO COMMENTS
+-- 6. SEED PHOTO COMMENTS (mereferensikan photos.id = 5, 7, 9)
 INSERT INTO photo_comments (id, photo_id, user_id, content) VALUES
-(1, 1, 4, 'Selamat Kak Dinda dan teman-teman Angkatan 2022! Semoga sukses selalu di dunia kerja.'),
-(2, 1, 3, 'Terima kasih banyak Rizky! Semangat terus kuliahnya sampai wisuda nanti ya.'),
-(3, 3, 2, 'Acara kemarin seru banget, pematerinya daging semua. Ditunggu workshop lanjutannya!'),
-(4, 5, 5, 'Kangen banget suasana PKKMB hari pertama kenal teman-teman seangkatan!');
+(1, 5, 4, 'Selamat Kak Dinda dan teman-teman Angkatan 2022! Semoga sukses selalu di dunia kerja.'),
+(2, 5, 3, 'Terima kasih banyak Rizky! Semangat terus kuliahnya sampai wisuda nanti ya.'),
+(3, 7, 2, 'Acara kemarin seru banget, pematerinya daging semua. Ditunggu workshop lanjutannya!'),
+(4, 9, 5, 'Kangen banget suasana PKKMB hari pertama kenal teman-teman seangkatan!');
 
 -- 7. SEED ANNOUNCEMENTS
 INSERT INTO announcements (id, title, slug, category, excerpt, content, banner_url, is_pinned, author_id, published_at) VALUES
