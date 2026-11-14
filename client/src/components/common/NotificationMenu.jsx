@@ -23,6 +23,12 @@ const TYPE_ICON = {
   new_comment: <ChatBubbleRoundedIcon fontSize="small" className="text-sky-500" />,
   new_like: <FavoriteRoundedIcon fontSize="small" className="text-pink-500" />,
   account_verified: <VerifiedUserRoundedIcon fontSize="small" className="text-emerald-500" />,
+  material_approved: <CheckCircleRoundedIcon fontSize="small" className="text-emerald-500" />,
+  material_rejected: <CancelRoundedIcon fontSize="small" className="text-red-500" />,
+  material_takedown: <CancelRoundedIcon fontSize="small" className="text-red-500" />,
+  course_approved: <CheckCircleRoundedIcon fontSize="small" className="text-emerald-500" />,
+  course_rejected: <CancelRoundedIcon fontSize="small" className="text-red-500" />,
+  request_fulfilled: <CheckCircleRoundedIcon fontSize="small" className="text-sky-500" />,
   system: <InfoRoundedIcon fontSize="small" className="text-amber-500" />,
 };
 

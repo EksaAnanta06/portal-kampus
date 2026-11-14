@@ -2,6 +2,51 @@
 import { pool } from '../config/db.js';
 
 const columnExistsCache = new Map();
+const ENUM_VALUE_REGEX = /'((?:[^'\\]|\\.|'')*)'/g;
+let cachedNotificationEnumTypes = null;
+const warnedMissingNotificationTypes = new Set();
+
+const truncateChars = (value, max) => Array.from(String(value ?? '')).slice(0, max).join('');
+
+const isDataTruncationError = (err) =>
+  err?.errno === 1265 ||
+  err?.code === 'WARN_DATA_TRUNCATED' ||
+  err?.code === 'ER_WARN_DATA_TRUNCATED';
+
+const getNotificationEnumTypes = async (db = pool, forceRefresh = false) => {
+  if (!forceRefresh && cachedNotificationEnumTypes) {
+    return cachedNotificationEnumTypes;
+  }
+
+  try {
+    const [rows] = await db.query(
+      `SELECT DATA_TYPE, COLUMN_TYPE
+       FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'notifications' AND COLUMN_NAME = 'type'
+       LIMIT 1`
+    );
+    if (rows.length === 0) return null;
+
+    if (String(rows[0].DATA_TYPE || '').toLowerCase() !== 'enum') {
+      cachedNotificationEnumTypes = null;
+      return null;
+    }
+
+    const colType = String(rows[0].COLUMN_TYPE || '');
+    const values = new Set();
+    for (const match of colType.matchAll(ENUM_VALUE_REGEX)) {
+      values.add(match[1].replace(/\\'/g, "'").replace(/''/g, "'"));
+    }
+
+    if (values.size > 0) {
+      cachedNotificationEnumTypes = values;
+      return values;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
 
 export const hasTableColumn = async (tableName, columnName) => {
   const key = `${tableName}.${columnName}`;
@@ -25,11 +70,60 @@ export const createNotification = async (
   db = pool
 ) => {
   if (!userId) return;
-  await db.query(
-    `INSERT INTO notifications (user_id, type, title, message, reference_link)
-     VALUES (?, ?, ?, ?, ?)`,
-    [userId, type, title, message, referenceLink]
-  );
+
+  let resolvedType = String(type || 'system');
+  let enumTypes = await getNotificationEnumTypes(db);
+
+  if (enumTypes && !enumTypes.has(resolvedType)) {
+    // Muat ulang metadata sekali siapa tahu migrasi 002 baru saja dijalankan.
+    enumTypes = await getNotificationEnumTypes(db, true);
+  }
+
+  if (enumTypes && !enumTypes.has(resolvedType)) {
+    if (!warnedMissingNotificationTypes.has(resolvedType)) {
+      warnedMissingNotificationTypes.add(resolvedType);
+      console.warn(
+        `[DB Compat] Kolom notifications.type belum mendukung "${resolvedType}". Fallback ke "system". Jalankan database/migrations/002_hardening_fk_indexes_cloudinary_up.sql.`
+      );
+    }
+    if (enumTypes.has('system')) {
+      resolvedType = 'system';
+    } else {
+      return;
+    }
+  }
+
+  const safeTitle = truncateChars(title, 150);
+  const safeMessage = truncateChars(message, 300);
+  const safeLink = referenceLink ? truncateChars(referenceLink, 255) : null;
+
+  try {
+    await db.query(
+      `INSERT INTO notifications (user_id, type, title, message, reference_link)
+       VALUES (?, ?, ?, ?, ?)`,
+      [userId, resolvedType, safeTitle, safeMessage, safeLink]
+    );
+  } catch (err) {
+    if (!isDataTruncationError(err)) {
+      throw err;
+    }
+    cachedNotificationEnumTypes = null;
+    if (resolvedType !== 'system') {
+      try {
+        await db.query(
+          `INSERT INTO notifications (user_id, type, title, message, reference_link)
+           VALUES (?, ?, ?, ?, ?)`,
+          [userId, 'system', safeTitle, safeMessage, safeLink]
+        );
+        return;
+      } catch (fallbackErr) {
+        if (!isDataTruncationError(fallbackErr)) {
+          throw fallbackErr;
+        }
+      }
+    }
+    console.warn(`[DB Compat] Notifikasi dilewati karena batas kolom DB: ${err.message}`);
+  }
 };
 
 export const getUserNotifications = async (userId, limit = 25) => {

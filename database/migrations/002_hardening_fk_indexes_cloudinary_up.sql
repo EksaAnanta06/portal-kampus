@@ -61,6 +61,16 @@ MODIFY COLUMN type ENUM(
     'system'
 ) NOT NULL;
 
+-- 3b. Pastikan ENUM materi.status mendukung status takedown
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'materi' AND COLUMN_NAME = 'status'
+       AND COLUMN_TYPE NOT LIKE '%takedown%') > 0,
+    "ALTER TABLE materi MODIFY COLUMN status ENUM('pending', 'approved', 'rejected', 'takedown') NOT NULL DEFAULT 'pending'",
+    'SELECT "materi.status already supports takedown"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
 -- 4. Sinkronkan status materi_laporan yang diabaikan
 UPDATE materi_laporan
 SET status = 'dismissed'
