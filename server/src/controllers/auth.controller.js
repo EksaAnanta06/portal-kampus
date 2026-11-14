@@ -15,13 +15,25 @@ import {
 
 const REFRESH_COOKIE_NAME = 'pasim_refresh_token';
 
-const getCookieOptions = () => ({
-  httpOnly: true,
-  secure: env.isProd,
-  sameSite: env.isProd ? 'none' : 'lax',
-  maxAge: env.jwt.refreshCookieMaxAge,
-  path: '/',
-});
+const isHttpsRequest = (req) =>
+  Boolean(
+    req?.secure ||
+      req?.headers?.['x-forwarded-proto']?.split(',')[0]?.trim()?.toLowerCase() === 'https'
+  );
+
+const getCookieOptions = (req, { includeMaxAge = true } = {}) => {
+  const useSecureCookie = env.isProd || isHttpsRequest(req);
+  const options = {
+    httpOnly: true,
+    secure: useSecureCookie,
+    sameSite: useSecureCookie ? 'none' : 'lax',
+    path: '/',
+  };
+  if (includeMaxAge) {
+    options.maxAge = env.jwt.refreshCookieMaxAge;
+  }
+  return options;
+};
 
 export const register = asyncHandler(async (req, res) => {
   const newUser = await registerUserService(req.body);
@@ -42,7 +54,7 @@ export const login = asyncHandler(async (req, res) => {
     ipAddress: req.ip,
   });
 
-  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
 
   return sendResponse(res, {
     message: `Selamat datang kembali, ${user.full_name}!`,
@@ -58,7 +70,7 @@ export const refresh = asyncHandler(async (req, res) => {
     ipAddress: req.ip,
   });
 
-  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
 
   return sendResponse(res, {
     message: 'Token berhasil diperbarui.',
@@ -72,12 +84,7 @@ export const logout = asyncHandler(async (req, res) => {
     await revokeRefreshTokenByHash(hashToken(refreshToken));
   }
 
-  res.clearCookie(REFRESH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: env.isProd,
-    sameSite: env.isProd ? 'none' : 'lax',
-    path: '/',
-  });
+  res.clearCookie(REFRESH_COOKIE_NAME, getCookieOptions(req, { includeMaxAge: false }));
 
   return sendResponse(res, {
     message: 'Berhasil keluar dari sesi akun.',

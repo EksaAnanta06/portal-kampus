@@ -7,6 +7,7 @@ import { env } from './config/env.js';
 import { generalLimiter } from './middlewares/rateLimiter.middleware.js';
 import { sanitizeRequest } from './middlewares/validate.middleware.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
+import { buildAllowedOriginEntries, isOriginAllowed } from './utils/corsConfig.js';
 import apiRoutes from './routes/index.js';
 
 const app = express();
@@ -49,24 +50,25 @@ app.use(
   })
 );
 
-// 2. CORS Whitelist Origin dengan dukungan Cookie (credentials: true)
+// 2. CORS Whitelist Origin (mendukung wildcard & quick tunnel dev seperti trycloudflare.com)
 const defaultDevOrigins =
   env.nodeEnv === 'development' ? ['http://localhost:5173', 'http://127.0.0.1:5173'] : [];
-const allowedOrigins = Array.from(
-  new Set([
-    ...env.clientUrl
-      .split(',')
-      .map((url) => url.trim())
-      .filter(Boolean),
-    ...defaultDevOrigins,
-  ])
-);
+const allowedOriginEntries = buildAllowedOriginEntries(env.clientUrl, defaultDevOrigins);
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        isOriginAllowed(origin, {
+          allowedEntries: allowedOriginEntries,
+          allowDevTunnels: env.security.corsAllowTunnels,
+        })
+      ) {
         callback(null, true);
       } else {
+        console.warn(
+          `[CORS] Origin ditolak: ${origin}. Tambahkan ke CLIENT_URL atau aktifkan CORS_ALLOW_TUNNELS=true bila memakai tunnel sementara.`
+        );
         callback(new Error(`Origin ${origin} tidak diizinkan oleh kebijakan CORS.`));
       }
     },

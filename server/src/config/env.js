@@ -66,6 +66,9 @@ export const env = {
       process.env.TRUST_PROXY === 'false' || process.env.TRUST_PROXY === '0'
         ? false
         : Number(process.env.TRUST_PROXY) || 1,
+    corsAllowTunnels:
+      process.env.CORS_ALLOW_TUNNELS === 'true' ||
+      (process.env.CORS_ALLOW_TUNNELS !== 'false' && process.env.NODE_ENV !== 'production'),
     allowDevResetTokenResponse:
       process.env.NODE_ENV !== 'production' &&
       process.env.ENABLE_DEV_RESET_TOKEN_RESPONSE === 'true',
