@@ -194,8 +194,11 @@ export default function CourseMaterialsPage() {
           <TextField
             select
             size="small"
+            label="Tipe Materi"
             value={selectedType}
             onChange={(e) => setSelectedType(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-48"
           >
             <MenuItem value="">Semua Tipe Materi</MenuItem>
@@ -209,6 +212,7 @@ export default function CourseMaterialsPage() {
           <TextField
             select
             size="small"
+            label="Urutkan"
             value={sortOrder}
             onChange={(e) => setSortOrder(e.target.value)}
             className="w-full sm:w-44"

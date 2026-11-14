@@ -113,7 +113,7 @@ export default function ManageMaterialsPage() {
             to="/akademik/materi"
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-slate-300 bg-white px-4 py-2 text-xs font-bold text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-navy-800 dark:text-slate-200"
           >
-            <span>Buka Perpustakaan Materi</span>
+            <span>Buka Materi Perpustakaan</span>
             <OpenInNewRoundedIcon sx={{ fontSize: 14 }} />
           </Link>
         </div>

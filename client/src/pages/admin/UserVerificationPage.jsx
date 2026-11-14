@@ -147,6 +147,8 @@ export default function UserVerificationPage() {
               setStatus(e.target.value);
               setPage(1);
             }}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-48"
           >
             <MenuItem value="">Semua Status</MenuItem>

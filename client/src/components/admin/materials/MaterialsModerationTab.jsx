@@ -164,6 +164,8 @@ export default function MaterialsModerationTab({
             label="Status Perizinan"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-44"
           >
             <MenuItem value="">Semua Status</MenuItem>
@@ -179,6 +181,8 @@ export default function MaterialsModerationTab({
             label="Program Studi"
             value={filterProdi}
             onChange={(e) => setFilterProdi(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-44"
           >
             <MenuItem value="">Semua Prodi</MenuItem>
@@ -195,6 +199,8 @@ export default function MaterialsModerationTab({
             label="Semester"
             value={filterSemester}
             onChange={(e) => setFilterSemester(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-32"
           >
             <MenuItem value="">Semua</MenuItem>

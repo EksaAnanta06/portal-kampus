@@ -136,7 +136,7 @@ export default function MaterialsLibraryPage() {
               <span>Perpustakaan & Repositori Pembelajaran Mahasiswa</span>
             </div>
             <h1 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl md:text-4xl">
-              Perpustakaan Materi Pasim
+              Materi Perpustakaan
             </h1>
             <p className="mt-1 text-xs text-emerald-100 sm:text-sm leading-relaxed">
               Tempat kakak tingkat dan alumni Universitas Nasional Pasim membagikan ringkasan, slide presentasi, modul praktikum, dan video pembahasan untuk adik tingkat.

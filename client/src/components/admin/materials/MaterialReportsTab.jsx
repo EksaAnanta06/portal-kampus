@@ -125,6 +125,8 @@ export default function MaterialReportsTab({ onReportHandled }) {
           label="Status Laporan"
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
+          InputLabelProps={{ shrink: true }}
+          SelectProps={{ displayEmpty: true }}
           className="w-full sm:w-52"
         >
           <MenuItem value="">Semua Status</MenuItem>

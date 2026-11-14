@@ -318,6 +318,8 @@ export default function ManageGalleryPage() {
               label="Pilih Tahun Angkatan"
               value={selectedAngkatanId}
               onChange={(e) => setSelectedAngkatanId(e.target.value)}
+              InputLabelProps={{ shrink: true }}
+              SelectProps={{ displayEmpty: true }}
             >
               <MenuItem value="">Semua Angkatan</MenuItem>
               {angkatanList.map((a) => (

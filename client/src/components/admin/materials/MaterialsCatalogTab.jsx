@@ -266,6 +266,8 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
             label="Filter Prodi"
             value={filterProdi}
             onChange={(e) => setFilterProdi(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-44"
           >
             <MenuItem value="">Semua Prodi</MenuItem>
@@ -282,6 +284,8 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
             label="Semester"
             value={filterSemester}
             onChange={(e) => setFilterSemester(e.target.value)}
+            InputLabelProps={{ shrink: true }}
+            SelectProps={{ displayEmpty: true }}
             className="w-full sm:w-32"
           >
             <MenuItem value="">Semua</MenuItem>

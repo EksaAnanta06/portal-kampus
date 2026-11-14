@@ -154,6 +154,8 @@ export default function DirectoryPage() {
             setProdi(e.target.value);
             setPage(1);
           }}
+          InputLabelProps={{ shrink: true }}
+          SelectProps={{ displayEmpty: true }}
         >
           <MenuItem value="">Semua Program Studi</MenuItem>
           {PRODI_LIST.map((p) => (
@@ -172,6 +174,8 @@ export default function DirectoryPage() {
             setAngkatan(e.target.value);
             setPage(1);
           }}
+          InputLabelProps={{ shrink: true }}
+          SelectProps={{ displayEmpty: true }}
         >
           <MenuItem value="">Semua Angkatan</MenuItem>
           {ANGKATAN_YEAR_OPTIONS.map((y) => (
@@ -190,6 +194,8 @@ export default function DirectoryPage() {
             setRole(e.target.value);
             setPage(1);
           }}
+          InputLabelProps={{ shrink: true }}
+          SelectProps={{ displayEmpty: true }}
         >
           <MenuItem value="">Semua Status</MenuItem>
           <MenuItem value="mahasiswa">Mahasiswa Aktif</MenuItem>

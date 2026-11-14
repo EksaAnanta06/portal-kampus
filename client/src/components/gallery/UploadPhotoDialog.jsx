@@ -268,6 +268,8 @@ export default function UploadPhotoDialog({
                 label="Album (opsional)"
                 value={albumId}
                 onChange={(e) => setAlbumId(e.target.value)}
+                InputLabelProps={{ shrink: true }}
+                SelectProps={{ displayEmpty: true }}
               >
                 <MenuItem value="">— Tanpa Album —</MenuItem>
                 {albums.map((al) => (
