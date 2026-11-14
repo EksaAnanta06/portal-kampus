@@ -54,6 +54,23 @@ export const env = {
     folder: process.env.CLOUDINARY_FOLDER || 'portal-unas-pasim',
   },
 
+  upload: {
+    maxPhotoBytes: (Number(process.env.MAX_PHOTO_FILE_SIZE_MB) || 5) * 1024 * 1024,
+    maxDocBytes:
+      Number(process.env.MAX_FILE_SIZE_BYTES) ||
+      (Number(process.env.MAX_DOC_FILE_SIZE_MB) || 10) * 1024 * 1024,
+  },
+
+  security: {
+    trustProxy:
+      process.env.TRUST_PROXY === 'false' || process.env.TRUST_PROXY === '0'
+        ? false
+        : Number(process.env.TRUST_PROXY) || 1,
+    allowDevResetTokenResponse:
+      process.env.NODE_ENV !== 'production' &&
+      process.env.ENABLE_DEV_RESET_TOKEN_RESPONSE === 'true',
+  },
+
   smtp: {
     host: process.env.SMTP_HOST || '',
     port: Number(process.env.SMTP_PORT) || 587,
