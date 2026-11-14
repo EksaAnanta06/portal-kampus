@@ -88,7 +88,7 @@ export default function MainLayout() {
     ...(isLoggedIn
       ? [
           { to: '/direktori', label: 'Direktori Mahasiswa & Alumni', icon: <GroupsRoundedIcon fontSize="small" /> },
-          { to: '/akademik/materi', label: 'Materi Perkuliahan', icon: <MenuBookRoundedIcon fontSize="small" /> },
+          { to: '/akademik/materi', label: 'Perpustakaan Materi', icon: <MenuBookRoundedIcon fontSize="small" /> },
         ]
       : []),
   ];
@@ -348,7 +348,7 @@ export default function MainLayout() {
                       <ListItemIcon>
                         <MenuBookRoundedIcon fontSize="small" />
                       </ListItemIcon>
-                      Materi Perkuliahan
+                      Perpustakaan Materi
                     </MenuItem>
                     {isStaff && (
                       <MenuItem
