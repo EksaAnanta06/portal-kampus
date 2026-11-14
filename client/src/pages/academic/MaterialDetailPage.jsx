@@ -27,6 +27,7 @@ import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import materialApi from '../../api/material.api';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
@@ -316,7 +317,11 @@ export default function MaterialDetailPage() {
     );
   }
 
-  const resolvedYoutubeId = material.youtube_video_id || extractYoutubeVideoId(material.youtube_url);
+  const safeExternalUrl =
+    typeof material.external_url === 'string' && /^https?:\/\//i.test(material.external_url.trim())
+      ? material.external_url.trim()
+      : '';
+  const resolvedYoutubeId = material.youtube_video_id || extractYoutubeVideoId(safeExternalUrl);
   const statusLabel = MATERIAL_STATUS_LABELS[material.status] || material.status?.toUpperCase();
   const typeLabel = MATERIAL_TYPE_LABELS[material.tipe_materi] || material.tipe_materi;
 
@@ -547,9 +552,33 @@ export default function MaterialDetailPage() {
           </h3>
           <YoutubePlayer
             videoId={resolvedYoutubeId}
-            videoUrl={material.youtube_url}
+            videoUrl={safeExternalUrl}
             title={material.judul}
           />
+        </div>
+      )}
+
+      {/* Tautan Eksternal / Referensi Tambahan */}
+      {safeExternalUrl && (
+        <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-3xl border border-emerald-200 bg-emerald-50/40 p-5 sm:p-6 shadow-sm dark:border-emerald-900/50 dark:bg-emerald-950/20">
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+              Tautan Referensi / Sumber Eksternal
+            </h3>
+            <p className="mt-1 truncate text-xs text-slate-600 dark:text-slate-300">
+              {safeExternalUrl}
+            </p>
+          </div>
+          <a
+            href={safeExternalUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleTrackDownload}
+            className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+          >
+            <span>Buka Tautan</span>
+            <OpenInNewRoundedIcon sx={{ fontSize: 15 }} />
+          </a>
         </div>
       )}
 
@@ -634,36 +663,42 @@ export default function MaterialDetailPage() {
 
         {/* Daftar Berkas */}
         <div className="space-y-2">
-          {material.files?.map((f) => (
-            <div
-              key={f.id}
-              className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-700 dark:bg-navy"
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <span className="text-xl shrink-0">📄</span>
-                <div className="min-w-0">
-                  <h5 className="truncate text-xs font-bold text-slate-900 dark:text-white">
-                    {f.file_name}
-                  </h5>
-                  <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Ukuran: {formatBytes(f.file_size)} • Format: {f.file_format?.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-
-              <a
-                href={f.file_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                download
-                onClick={handleTrackDownload}
-                className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+          {!material.files || material.files.length === 0 ? (
+            <p className="rounded-2xl border border-dashed border-slate-200 px-4 py-4 text-xs text-slate-500 dark:border-slate-700 dark:text-slate-400">
+              Tidak ada berkas unggahan terlampir. Silakan baca ringkasan materi di atas atau buka tautan referensi jika tersedia.
+            </p>
+          ) : (
+            material.files.map((f) => (
+              <div
+                key={f.id}
+                className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3.5 dark:border-slate-700 dark:bg-navy"
               >
-                <DownloadRoundedIcon sx={{ fontSize: 16 }} />
-                <span>Unduh</span>
-              </a>
-            </div>
-          ))}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-xl shrink-0">📄</span>
+                  <div className="min-w-0">
+                    <h5 className="truncate text-xs font-bold text-slate-900 dark:text-white">
+                      {f.file_name}
+                    </h5>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      Ukuran: {formatBytes(f.file_size)} • Format: {f.file_format?.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+
+                <a
+                  href={f.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download
+                  onClick={handleTrackDownload}
+                  className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+                >
+                  <DownloadRoundedIcon sx={{ fontSize: 16 }} />
+                  <span>Unduh</span>
+                </a>
+              </div>
+            ))
+          )}
         </div>
 
         {/* Riwayat Versi Singkat */}

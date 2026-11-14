@@ -56,6 +56,17 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
   });
   const [savingCourse, setSavingCourse] = useState(false);
 
+  const [prodiDialog, setProdiDialog] = useState({
+    open: false,
+    form: {
+      kode: '',
+      nama: '',
+      jenjang: 'S1',
+      fakultas: 'Fakultas Ilmu Komputer & Desain',
+    },
+  });
+  const [savingProdi, setSavingProdi] = useState(false);
+
   const [deleteDialog, setDeleteDialog] = useState({
     open: false,
     id: null,
@@ -171,6 +182,30 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
       toast.error(getErrorMessage(err));
     } finally {
       setSavingCourse(false);
+    }
+  };
+
+  const handleSaveProdi = async (e) => {
+    e.preventDefault();
+    try {
+      setSavingProdi(true);
+      await materialApi.createProdi(prodiDialog.form);
+      toast.success('Program studi baru berhasil ditambahkan.');
+      setProdiDialog({
+        open: false,
+        form: {
+          kode: '',
+          nama: '',
+          jenjang: 'S1',
+          fakultas: 'Fakultas Ilmu Komputer & Desain',
+        },
+      });
+      await fetchCourses();
+      onCatalogChange?.();
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setSavingProdi(false);
     }
   };
 
@@ -305,15 +340,36 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
           />
         </div>
 
-        <Button
-          variant="contained"
-          color="primary"
-          startIcon={<AddRoundedIcon />}
-          onClick={() => handleOpenDialog()}
-          sx={{ borderRadius: 2, minHeight: 42, shrink: 0 }}
-        >
-          Tambah Mata Kuliah
-        </Button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <Button
+            variant="outlined"
+            color="primary"
+            startIcon={<AddRoundedIcon />}
+            onClick={() =>
+              setProdiDialog({
+                open: true,
+                form: {
+                  kode: '',
+                  nama: '',
+                  jenjang: 'S1',
+                  fakultas: 'Fakultas Ilmu Komputer & Desain',
+                },
+              })
+            }
+            sx={{ borderRadius: 2, minHeight: 42 }}
+          >
+            Tambah Prodi
+          </Button>
+          <Button
+            variant="contained"
+            color="primary"
+            startIcon={<AddRoundedIcon />}
+            onClick={() => handleOpenDialog()}
+            sx={{ borderRadius: 2, minHeight: 42 }}
+          >
+            Tambah Mata Kuliah
+          </Button>
+        </div>
       </div>
 
       {/* Grid Mata Kuliah */}
@@ -542,6 +598,101 @@ export default function MaterialsCatalogTab({ prodiList = [], onCatalogChange })
             </Button>
             <Button type="submit" variant="contained" color="primary" disabled={savingCourse}>
               {savingCourse ? 'Menyimpan...' : 'Simpan Mata Kuliah'}
+            </Button>
+          </DialogActions>
+        </form>
+      </Dialog>
+
+      {/* Modal Form Tambah Program Studi */}
+      <Dialog
+        open={prodiDialog.open}
+        onClose={() => !savingProdi && setProdiDialog({ ...prodiDialog, open: false })}
+        maxWidth="sm"
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{ className: '!rounded-none sm:!rounded-3xl' }}
+      >
+        <form onSubmit={handleSaveProdi}>
+          <DialogTitle className="!font-bold !text-base">
+            Tambah Program Studi Baru
+          </DialogTitle>
+          <DialogContent className="space-y-3 !pt-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <TextField
+                fullWidth
+                size="small"
+                label="Kode Prodi"
+                placeholder="Contoh: TIN"
+                value={prodiDialog.form.kode}
+                onChange={(e) =>
+                  setProdiDialog({
+                    ...prodiDialog,
+                    form: { ...prodiDialog.form, kode: e.target.value.toUpperCase() },
+                  })
+                }
+                required
+              />
+
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Jenjang"
+                value={prodiDialog.form.jenjang}
+                onChange={(e) =>
+                  setProdiDialog({
+                    ...prodiDialog,
+                    form: { ...prodiDialog.form, jenjang: e.target.value },
+                  })
+                }
+                required
+              >
+                <MenuItem value="D3">D3 (Diploma 3)</MenuItem>
+                <MenuItem value="S1">S1 (Sarjana)</MenuItem>
+                <MenuItem value="S2">S2 (Magister)</MenuItem>
+              </TextField>
+            </div>
+
+            <TextField
+              fullWidth
+              size="small"
+              label="Nama Program Studi"
+              placeholder="Contoh: S1 Teknik Industri"
+              value={prodiDialog.form.nama}
+              onChange={(e) =>
+                setProdiDialog({
+                  ...prodiDialog,
+                  form: { ...prodiDialog.form, nama: e.target.value },
+                })
+              }
+              required
+            />
+
+            <TextField
+              fullWidth
+              size="small"
+              label="Fakultas"
+              placeholder="Contoh: Fakultas Teknik"
+              value={prodiDialog.form.fakultas}
+              onChange={(e) =>
+                setProdiDialog({
+                  ...prodiDialog,
+                  form: { ...prodiDialog.form, fakultas: e.target.value },
+                })
+              }
+              required
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button
+              onClick={() => setProdiDialog({ ...prodiDialog, open: false })}
+              color="inherit"
+              disabled={savingProdi}
+            >
+              Batal
+            </Button>
+            <Button type="submit" variant="contained" color="primary" disabled={savingProdi}>
+              {savingProdi ? 'Menyimpan...' : 'Simpan Prodi'}
             </Button>
           </DialogActions>
         </form>

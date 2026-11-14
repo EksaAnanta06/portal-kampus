@@ -14,10 +14,14 @@ export const CAMPUS_INFO = {
 export const PRODI_LIST = [
   'S1 Teknik Informatika',
   'S1 Sistem Informasi',
+  'D3 Manajemen Informatika',
   'S1 Manajemen',
   'S1 Akuntansi',
+  'S1 Teknik Industri',
   'S1 Psikologi',
   'S1 Sastra Jepang',
+  'S1 Sastra Inggris',
+  'S1 Ilmu Komunikasi',
 ];
 
 export const ROLES = {

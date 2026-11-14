@@ -224,7 +224,7 @@ export default function MaterialRequestsDrawer({ open, onClose, courses = [] }) 
               >
                 {courseList.map((c) => (
                   <MenuItem key={c.id} value={c.id}>
-                    {c.kode} - {c.nama} (Sem {c.semester_rekomendasi})
+                    {c.prodi_kode ? `[${c.prodi_kode}] ` : ''}{c.kode} - {c.nama} (Sem {c.semester_rekomendasi})
                   </MenuItem>
                 ))}
               </TextField>

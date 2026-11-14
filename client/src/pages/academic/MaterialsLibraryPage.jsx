@@ -29,11 +29,16 @@ import MyCollectionsModal from '../../components/academic/MyCollectionsModal';
 import ProposeCourseModal from '../../components/academic/ProposeCourseModal';
 
 const FALLBACK_PRODI = [
-  { id: 1, kode: 'TIF', nama: 'Teknik Informatika' },
-  { id: 2, kode: 'SI', nama: 'Sistem Informasi' },
-  { id: 3, kode: 'MNJ', nama: 'Manajemen' },
-  { id: 4, kode: 'AKT', nama: 'Akuntansi' },
-  { id: 5, kode: 'KOM', nama: 'Ilmu Komunikasi' },
+  { id: 1, kode: 'TIF', nama: 'S1 Teknik Informatika' },
+  { id: 2, kode: 'SI', nama: 'S1 Sistem Informasi' },
+  { id: 3, kode: 'MI', nama: 'D3 Manajemen Informatika' },
+  { id: 4, kode: 'MNJ', nama: 'S1 Manajemen' },
+  { id: 5, kode: 'AKT', nama: 'S1 Akuntansi' },
+  { id: 6, kode: 'TIN', nama: 'S1 Teknik Industri' },
+  { id: 7, kode: 'PSI', nama: 'S1 Psikologi' },
+  { id: 8, kode: 'SASJAP', nama: 'S1 Sastra Jepang' },
+  { id: 9, kode: 'SASING', nama: 'S1 Sastra Inggris' },
+  { id: 10, kode: 'KOM', nama: 'S1 Ilmu Komunikasi' },
 ];
 
 export default function MaterialsLibraryPage() {

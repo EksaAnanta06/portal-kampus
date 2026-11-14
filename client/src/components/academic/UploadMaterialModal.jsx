@@ -41,7 +41,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
       judul: '',
       deskripsi: '',
       tags: '',
-      tahun_akademik: '2025/2026',
+      tahun_akademik: '2026/2027',
       angkatan_kontributor: user?.angkatan_year || user?.angkatan || '',
       dosen_pengampu_teks: '',
       sumber_kredit: '',
@@ -235,7 +235,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                 >
                   {courseList.map((c) => (
                     <MenuItem key={c.id} value={c.id}>
-                      {c.kode} - {c.nama} (Sem {c.semester_rekomendasi})
+                      {c.prodi_kode ? `[${c.prodi_kode}] ` : ''}{c.kode} - {c.nama} (Sem {c.semester_rekomendasi})
                     </MenuItem>
                   ))}
                 </TextField>
@@ -323,7 +323,7 @@ export default function UploadMaterialModal({ open, onClose, courses = [], defau
                 <TextField
                   fullWidth
                   size="small"
-                  placeholder="Contoh: 2024/2025 Genap"
+                  placeholder="Contoh: 2026/2027 Ganjil"
                   value={form.tahun_akademik}
                   onChange={(e) => setForm({ ...form, tahun_akademik: e.target.value })}
                 />
