@@ -4,7 +4,7 @@ import { listAlbums, createAlbum, updateAlbum, deleteAlbum } from '../controller
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { createAlbumSchema } from '../validators/gallery.validator.js';
+import { createAlbumSchema, updateAlbumSchema } from '../validators/gallery.validator.js';
 
 const router = Router();
 
@@ -16,12 +16,7 @@ router.post(
   validate(createAlbumSchema),
   createAlbum
 );
-router.put(
-  '/:id',
-  authenticate,
-  authorizeRoles('admin', 'moderator'),
-  updateAlbum
-);
+router.put('/:id', authenticate, validate(updateAlbumSchema), updateAlbum);
 router.delete('/:id', authenticate, deleteAlbum);
 
 export default router;

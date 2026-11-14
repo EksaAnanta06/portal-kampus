@@ -17,11 +17,24 @@ import {
 } from '../queries/interaction.queries.js';
 import { createNotification } from '../queries/campus.queries.js';
 
+const assertPhotoReadableByUser = (photo, user) => {
+  if (!photo) {
+    throw new AppError('Foto tidak ditemukan.', 404);
+  }
+  if (photo.status !== 'approved') {
+    const isOwner = user && Number(user.id) === Number(photo.uploader_id);
+    const isStaff = user && ['admin', 'moderator'].includes(user.role);
+    if (!isOwner && !isStaff) {
+      throw new AppError('Foto ini belum ditayangkan atau sedang dalam moderasi.', 403);
+    }
+  }
+};
+
 export const toggleLike = asyncHandler(async (req, res) => {
   const photoId = Number(req.params.id);
   const photo = await findPhotoById(photoId);
   if (!photo || photo.status !== 'approved') {
-    throw new AppError('Foto tidak ditemukan.', 404);
+    throw new AppError('Foto tidak ditemukan atau belum disetujui.', 404);
   }
 
   const result = await togglePhotoLikeQuery(photoId, req.user.id);
@@ -45,9 +58,7 @@ export const toggleLike = asyncHandler(async (req, res) => {
 export const getPhotoLikers = asyncHandler(async (req, res) => {
   const photoId = Number(req.params.id);
   const photo = await findPhotoById(photoId);
-  if (!photo) {
-    throw new AppError('Foto tidak ditemukan.', 404);
-  }
+  assertPhotoReadableByUser(photo, req.user);
 
   const likers = await getPhotoLikersQuery(photoId);
   return sendResponse(res, {
@@ -57,7 +68,11 @@ export const getPhotoLikers = asyncHandler(async (req, res) => {
 });
 
 export const listComments = asyncHandler(async (req, res) => {
-  const comments = await getCommentsByPhotoId(Number(req.params.id));
+  const photoId = Number(req.params.id);
+  const photo = await findPhotoById(photoId);
+  assertPhotoReadableByUser(photo, req.user);
+
+  const comments = await getCommentsByPhotoId(photoId);
   return sendResponse(res, {
     message: 'Komentar berhasil dimuat.',
     data: comments,
@@ -68,7 +83,7 @@ export const addComment = asyncHandler(async (req, res) => {
   const photoId = Number(req.params.id);
   const photo = await findPhotoById(photoId);
   if (!photo || photo.status !== 'approved') {
-    throw new AppError('Foto tidak ditemukan.', 404);
+    throw new AppError('Foto tidak ditemukan atau belum disetujui.', 404);
   }
 
   const comment = await insertCommentRecord({
@@ -140,7 +155,7 @@ export const deleteComment = asyncHandler(async (req, res) => {
 export const reportPhoto = asyncHandler(async (req, res) => {
   const photoId = Number(req.params.id);
   const photo = await findPhotoById(photoId);
-  if (!photo) {
+  if (!photo || photo.status !== 'approved') {
     throw new AppError('Foto tidak ditemukan.', 404);
   }
 
@@ -158,19 +173,30 @@ export const reportPhoto = asyncHandler(async (req, res) => {
 });
 
 export const getPhotoReports = asyncHandler(async (req, res) => {
-  const reports = await listPhotoReportsQuery(req.query.status || 'open');
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 50));
+  const { rows, total } = await listPhotoReportsQuery({
+    status: req.query.status || 'open',
+    page,
+    limit,
+  });
   return sendResponse(res, {
     message: 'Daftar laporan foto berhasil dimuat.',
-    data: reports,
+    data: rows,
+    meta: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
 });
 
 export const resolvePhotoReport = asyncHandler(async (req, res) => {
   const status = req.body.status === 'dismissed' ? 'dismissed' : 'resolved';
-  await resolvePhotoReportRecord(Number(req.params.reportId), {
+  const affectedRows = await resolvePhotoReportRecord(Number(req.params.reportId), {
     status,
     resolvedBy: req.user.id,
   });
+
+  if (affectedRows === 0) {
+    throw new AppError('Laporan foto tidak ditemukan.', 404);
+  }
 
   return sendResponse(res, {
     message: `Laporan berhasil ditandai sebagai "${status}".`,

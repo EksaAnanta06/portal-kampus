@@ -1,9 +1,31 @@
 // FILE: server/src/queries/campus.queries.js
 import { pool } from '../config/db.js';
 
-export const createNotification = async ({ userId, type, title, message, referenceLink = null }) => {
+const columnExistsCache = new Map();
+
+export const hasTableColumn = async (tableName, columnName) => {
+  const key = `${tableName}.${columnName}`;
+  if (columnExistsCache.has(key)) return columnExistsCache.get(key);
+  try {
+    const [rows] = await pool.query(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+      [tableName, columnName]
+    );
+    const exists = rows.length > 0;
+    columnExistsCache.set(key, exists);
+    return exists;
+  } catch {
+    return false;
+  }
+};
+
+export const createNotification = async (
+  { userId, type, title, message, referenceLink = null },
+  db = pool
+) => {
   if (!userId) return;
-  await pool.query(
+  await db.query(
     `INSERT INTO notifications (user_id, type, title, message, reference_link)
      VALUES (?, ?, ?, ?, ?)`,
     [userId, type, title, message, referenceLink]
@@ -12,7 +34,8 @@ export const createNotification = async ({ userId, type, title, message, referen
 
 export const getUserNotifications = async (userId, limit = 25) => {
   const [rows] = await pool.query(
-    `SELECT * FROM notifications
+    `SELECT id, user_id, type, title, message, reference_link, is_read, created_at
+     FROM notifications
      WHERE user_id = ?
      ORDER BY created_at DESC
      LIMIT ?`,
@@ -50,9 +73,17 @@ export const listAnnouncementsQuery = async ({ category = '', search = '', page 
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
+  const hasBannerPublicId = await hasTableColumn('announcements', 'banner_public_id');
+  const bannerPidSelect = hasBannerPublicId
+    ? 'an.banner_public_id'
+    : 'NULL AS banner_public_id';
+
   const [countRows] = await pool.query(`SELECT COUNT(*) AS total FROM announcements an ${whereSql}`, params);
   const [rows] = await pool.query(
-    `SELECT an.*, u.full_name AS author_name
+    `SELECT an.id, an.title, an.slug, an.category, an.excerpt, an.content,
+            an.banner_url, ${bannerPidSelect}, an.is_pinned, an.author_id,
+            an.published_at, an.created_at, an.updated_at,
+            u.full_name AS author_name
      FROM announcements an
      LEFT JOIN users u ON u.id = an.author_id
      ${whereSql}
@@ -65,8 +96,16 @@ export const listAnnouncementsQuery = async ({ category = '', search = '', page 
 };
 
 export const getAnnouncementBySlugOrId = async (identifier) => {
+  const hasBannerPublicId = await hasTableColumn('announcements', 'banner_public_id');
+  const bannerPidSelect = hasBannerPublicId
+    ? 'an.banner_public_id'
+    : 'NULL AS banner_public_id';
+
   const [rows] = await pool.query(
-    `SELECT an.*, u.full_name AS author_name
+    `SELECT an.id, an.title, an.slug, an.category, an.excerpt, an.content,
+            an.banner_url, ${bannerPidSelect}, an.is_pinned, an.author_id,
+            an.published_at, an.created_at, an.updated_at,
+            u.full_name AS author_name
      FROM announcements an
      LEFT JOIN users u ON u.id = an.author_id
      WHERE an.slug = ? OR an.id = ?
@@ -76,7 +115,27 @@ export const getAnnouncementBySlugOrId = async (identifier) => {
   return rows[0] || null;
 };
 
-export const createAnnouncementRecord = async ({ title, slug, category, excerpt, content, banner_url, is_pinned, author_id }) => {
+export const createAnnouncementRecord = async ({
+  title,
+  slug,
+  category,
+  excerpt,
+  content,
+  banner_url,
+  banner_public_id = null,
+  is_pinned,
+  author_id,
+}) => {
+  const hasBannerPublicId = await hasTableColumn('announcements', 'banner_public_id');
+  if (hasBannerPublicId) {
+    const [result] = await pool.query(
+      `INSERT INTO announcements (title, slug, category, excerpt, content, banner_url, banner_public_id, is_pinned, author_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [title, slug, category, excerpt, content, banner_url || null, banner_public_id || null, is_pinned ? 1 : 0, author_id]
+    );
+    return result.insertId;
+  }
+
   const [result] = await pool.query(
     `INSERT INTO announcements (title, slug, category, excerpt, content, banner_url, is_pinned, author_id)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -85,7 +144,21 @@ export const createAnnouncementRecord = async ({ title, slug, category, excerpt,
   return result.insertId;
 };
 
-export const updateAnnouncementRecord = async (id, { title, category, excerpt, content, banner_url, is_pinned }) => {
+export const updateAnnouncementRecord = async (
+  id,
+  { title, category, excerpt, content, banner_url, banner_public_id, is_pinned }
+) => {
+  const hasBannerPublicId = await hasTableColumn('announcements', 'banner_public_id');
+  if (hasBannerPublicId) {
+    await pool.query(
+      `UPDATE announcements
+       SET title = ?, category = ?, excerpt = ?, content = ?, banner_url = ?, banner_public_id = ?, is_pinned = ?
+       WHERE id = ?`,
+      [title, category, excerpt, content, banner_url || null, banner_public_id ?? null, is_pinned ? 1 : 0, id]
+    );
+    return;
+  }
+
   await pool.query(
     `UPDATE announcements
      SET title = ?, category = ?, excerpt = ?, content = ?, banner_url = ?, is_pinned = ?
@@ -95,20 +168,28 @@ export const updateAnnouncementRecord = async (id, { title, category, excerpt, c
 };
 
 export const deleteAnnouncementRecord = async (id) => {
-  await pool.query('DELETE FROM announcements WHERE id = ?', [id]);
+  const [result] = await pool.query('DELETE FROM announcements WHERE id = ?', [id]);
+  return result.affectedRows || 0;
 };
 
 export const listEventsQuery = async ({ upcomingOnly = false, limit = 20, userId = null }) => {
   const whereSql = upcomingOnly ? 'WHERE e.end_date >= NOW()' : '';
+  const hasBannerPublicId = await hasTableColumn('events', 'banner_public_id');
+  const bannerPidSelect = hasBannerPublicId ? 'e.banner_public_id' : 'NULL AS banner_public_id';
+
   const [rows] = await pool.query(
     `SELECT
-        e.*,
+        e.id, e.title, e.description, e.location, e.organizer,
+        e.start_date, e.end_date, e.registration_link, e.banner_url, ${bannerPidSelect},
+        e.created_by, e.created_at, e.updated_at,
         u.full_name AS creator_name,
-        (SELECT COUNT(*) FROM event_likes el WHERE el.event_id = e.id) AS like_count,
-        (SELECT COUNT(*) FROM event_comments ec WHERE ec.event_id = e.id) AS comment_count,
+        COALESCE(el_agg.like_count, 0) AS like_count,
+        COALESCE(ec_agg.comment_count, 0) AS comment_count,
         IF(? IS NOT NULL AND EXISTS(SELECT 1 FROM event_likes el WHERE el.event_id = e.id AND el.user_id = ?), 1, 0) AS is_liked_by_me
      FROM events e
      LEFT JOIN users u ON u.id = e.created_by
+     LEFT JOIN (SELECT event_id, COUNT(*) AS like_count FROM event_likes GROUP BY event_id) el_agg ON el_agg.event_id = e.id
+     LEFT JOIN (SELECT event_id, COUNT(*) AS comment_count FROM event_comments GROUP BY event_id) ec_agg ON ec_agg.event_id = e.id
      ${whereSql}
      ORDER BY e.start_date ASC
      LIMIT ?`,
@@ -118,9 +199,14 @@ export const listEventsQuery = async ({ upcomingOnly = false, limit = 20, userId
 };
 
 export const getEventByIdQuery = async (id, userId = null) => {
+  const hasBannerPublicId = await hasTableColumn('events', 'banner_public_id');
+  const bannerPidSelect = hasBannerPublicId ? 'e.banner_public_id' : 'NULL AS banner_public_id';
+
   const [rows] = await pool.query(
     `SELECT
-        e.*,
+        e.id, e.title, e.description, e.location, e.organizer,
+        e.start_date, e.end_date, e.registration_link, e.banner_url, ${bannerPidSelect},
+        e.created_by, e.created_at, e.updated_at,
         u.full_name AS creator_name,
         (SELECT COUNT(*) FROM event_likes el WHERE el.event_id = e.id) AS like_count,
         (SELECT COUNT(*) FROM event_comments ec WHERE ec.event_id = e.id) AS comment_count,
@@ -143,8 +229,30 @@ export const createEventRecord = async ({
   end_date,
   registration_link,
   banner_url,
+  banner_public_id = null,
   created_by,
 }) => {
+  const hasBannerPublicId = await hasTableColumn('events', 'banner_public_id');
+  if (hasBannerPublicId) {
+    const [result] = await pool.query(
+      `INSERT INTO events (title, description, location, organizer, start_date, end_date, registration_link, banner_url, banner_public_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        title,
+        description,
+        location,
+        organizer,
+        start_date,
+        end_date,
+        registration_link || null,
+        banner_url || null,
+        banner_public_id || null,
+        created_by,
+      ]
+    );
+    return result.insertId;
+  }
+
   const [result] = await pool.query(
     `INSERT INTO events (title, description, location, organizer, start_date, end_date, registration_link, banner_url, created_by)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -165,8 +273,40 @@ export const createEventRecord = async ({
 
 export const updateEventRecord = async (
   id,
-  { title, description, location, organizer, start_date, end_date, registration_link, banner_url }
+  {
+    title,
+    description,
+    location,
+    organizer,
+    start_date,
+    end_date,
+    registration_link,
+    banner_url,
+    banner_public_id,
+  }
 ) => {
+  const hasBannerPublicId = await hasTableColumn('events', 'banner_public_id');
+  if (hasBannerPublicId) {
+    await pool.query(
+      `UPDATE events
+       SET title = ?, description = ?, location = ?, organizer = ?, start_date = ?, end_date = ?, registration_link = ?, banner_url = ?, banner_public_id = ?
+       WHERE id = ?`,
+      [
+        title,
+        description,
+        location,
+        organizer,
+        start_date,
+        end_date,
+        registration_link || null,
+        banner_url || null,
+        banner_public_id ?? null,
+        id,
+      ]
+    );
+    return;
+  }
+
   await pool.query(
     `UPDATE events
      SET title = ?, description = ?, location = ?, organizer = ?, start_date = ?, end_date = ?, registration_link = ?, banner_url = ?
@@ -186,7 +326,8 @@ export const updateEventRecord = async (
 };
 
 export const deleteEventRecord = async (id) => {
-  await pool.query('DELETE FROM events WHERE id = ?', [id]);
+  const [result] = await pool.query('DELETE FROM events WHERE id = ?', [id]);
+  return result.affectedRows || 0;
 };
 
 // ---------------- EVENT LIKES ----------------
@@ -350,7 +491,7 @@ export const getAdminDashboardStats = async () => {
   };
 };
 
-export const globalSearchQuery = async (keyword) => {
+export const globalSearchQuery = async (keyword, { includeAuthenticatedData = false } = {}) => {
   const likeTerm = `%${keyword}%`;
 
   const [photos] = await pool.query(
@@ -358,7 +499,7 @@ export const globalSearchQuery = async (keyword) => {
      FROM photos p
      INNER JOIN angkatan a ON a.id = p.angkatan_id
      INNER JOIN users u ON u.id = p.uploader_id
-     WHERE p.status = 'approved' AND (p.caption LIKE ? OR p.tags LIKE ?)
+     WHERE p.status = 'approved' AND a.is_active = 1 AND (p.caption LIKE ? OR p.tags LIKE ?)
      ORDER BY p.created_at DESC
      LIMIT 6`,
     [likeTerm, likeTerm]
@@ -373,15 +514,60 @@ export const globalSearchQuery = async (keyword) => {
     [likeTerm, likeTerm, likeTerm]
   );
 
-  const [users] = await pool.query(
-    `SELECT id, nim, full_name, role, prodi, angkatan_year, avatar_url, current_job
-     FROM users
-     WHERE status = 'active' AND is_public_profile = 1
-       AND (full_name LIKE ? OR nim LIKE ? OR prodi LIKE ?)
-     ORDER BY full_name ASC
-     LIMIT 6`,
-    [likeTerm, likeTerm, likeTerm]
-  );
+  let users = [];
+  let materials = [];
+  let courses = [];
 
-  return { photos, announcements, users };
+  if (includeAuthenticatedData) {
+    const [uRows] = await pool.query(
+      `SELECT id, nim, full_name, role, prodi, angkatan_year, avatar_url, current_job
+       FROM users
+       WHERE status = 'active' AND is_public_profile = 1
+         AND (full_name LIKE ? OR nim LIKE ? OR prodi LIKE ?)
+       ORDER BY full_name ASC
+       LIMIT 6`,
+      [likeTerm, likeTerm, likeTerm]
+    );
+    users = uRows;
+
+    const [mRows] = await pool.query(
+      `SELECT m.id, m.judul, m.tipe_materi, m.mata_kuliah_id, mk.kode AS mk_kode, mk.nama AS mk_nama,
+              p.nama AS prodi_nama, u.full_name AS uploader_name
+       FROM materi m
+       INNER JOIN mata_kuliah mk ON mk.id = m.mata_kuliah_id
+       LEFT JOIN prodi p ON p.id = mk.prodi_id
+       LEFT JOIN users u ON u.id = m.uploaded_by
+       WHERE m.status = 'approved' AND m.is_published = 1 AND mk.status = 'approved'
+         AND (m.judul LIKE ? OR m.tags LIKE ? OR mk.nama LIKE ?)
+       ORDER BY m.created_at DESC
+       LIMIT 6`,
+      [likeTerm, likeTerm, likeTerm]
+    );
+    materials = mRows;
+
+    const [cRows] = await pool.query(
+      `SELECT mk.id, mk.kode, mk.nama, mk.semester_rekomendasi, p.nama AS prodi_nama
+       FROM mata_kuliah mk
+       LEFT JOIN prodi p ON p.id = mk.prodi_id
+       WHERE mk.status = 'approved' AND (mk.nama LIKE ? OR mk.kode LIKE ?)
+       ORDER BY mk.semester_rekomendasi ASC, mk.nama ASC
+       LIMIT 6`,
+      [likeTerm, likeTerm]
+    );
+    courses = cRows;
+  } else {
+    // Tamu tidak menerima NIM maupun pencarian berbasis NIM
+    const [uRows] = await pool.query(
+      `SELECT id, full_name, role, prodi, angkatan_year, avatar_url, current_job
+       FROM users
+       WHERE status = 'active' AND is_public_profile = 1
+         AND (full_name LIKE ? OR prodi LIKE ?)
+       ORDER BY full_name ASC
+       LIMIT 6`,
+      [likeTerm, likeTerm]
+    );
+    users = uRows;
+  }
+
+  return { photos, announcements, users, materials, courses };
 };

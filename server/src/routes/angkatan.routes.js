@@ -11,7 +11,7 @@ import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
 import { uploadSingleImage } from '../middlewares/upload.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
-import { createAngkatanSchema } from '../validators/gallery.validator.js';
+import { createAngkatanSchema, updateAngkatanSchema } from '../validators/gallery.validator.js';
 
 const router = Router();
 
@@ -32,6 +32,7 @@ router.put(
   authenticate,
   authorizeRoles('admin', 'moderator'),
   uploadSingleImage('cover'),
+  validate(updateAngkatanSchema),
   updateAngkatan
 );
 

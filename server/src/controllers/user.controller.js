@@ -32,9 +32,13 @@ export const getDirectory = asyncHandler(async (req, res) => {
 
 export const getUserProfile = asyncHandler(async (req, res) => {
   const userId = Number(req.params.id);
-  const user = await getUserProfileDetailQuery(userId);
+  const isStaff = req.user && ['admin', 'moderator'].includes(req.user.role);
+  const user = await getUserProfileDetailQuery(userId, {
+    requesterId: req.user?.id || null,
+    isStaff,
+  });
   if (!user) {
-    throw new AppError('Pengguna tidak ditemukan atau profil belum aktif.', 404);
+    throw new AppError('Pengguna tidak ditemukan atau profil bersifat privat.', 404);
   }
   return sendResponse(res, {
     message: 'Profil pengguna berhasil dimuat.',

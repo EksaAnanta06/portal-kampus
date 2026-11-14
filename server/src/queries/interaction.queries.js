@@ -123,8 +123,14 @@ export const createPhotoReportRecord = async ({ photoId, reporterId, reason, des
   return result.insertId;
 };
 
-export const listPhotoReportsQuery = async (status = 'open') => {
-  const [rows] = await pool.execute(
+export const listPhotoReportsQuery = async ({ status = 'open', page = 1, limit = 50 } = {}) => {
+  const offset = (page - 1) * limit;
+  const [[{ total }]] = await pool.execute(
+    `SELECT COUNT(*) AS total FROM photo_reports pr WHERE (? = 'all' OR pr.status = ?)`,
+    [status, status]
+  );
+
+  const [rows] = await pool.query(
     `SELECT
         pr.*,
         p.url AS photo_url,
@@ -138,17 +144,19 @@ export const listPhotoReportsQuery = async (status = 'open') => {
      INNER JOIN angkatan a ON a.id = p.angkatan_id
      INNER JOIN users u ON u.id = pr.reporter_id
      WHERE (? = 'all' OR pr.status = ?)
-     ORDER BY pr.created_at DESC`,
-    [status, status]
+     ORDER BY pr.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [status, status, Number(limit), Number(offset)]
   );
-  return rows;
+  return { rows, total };
 };
 
 export const resolvePhotoReportRecord = async (reportId, { status, resolvedBy }) => {
-  await pool.execute(
+  const [result] = await pool.execute(
     `UPDATE photo_reports
      SET status = ?, resolved_by = ?, resolved_at = NOW()
      WHERE id = ?`,
     [status, resolvedBy, reportId]
   );
+  return result.affectedRows || 0;
 };

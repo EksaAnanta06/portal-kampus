@@ -29,6 +29,7 @@ import {
   moderatePhotoSchema,
   commentSchema,
   reportPhotoSchema,
+  resolvePhotoReportSchema,
 } from '../validators/gallery.validator.js';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.patch(
   '/reports/:reportId/resolve',
   authenticate,
   authorizeRoles('admin', 'moderator'),
+  validate(resolvePhotoReportSchema),
   resolvePhotoReport
 );
 
@@ -68,7 +70,7 @@ router.patch(
 // Likes, Comments, dan Reports
 router.post('/:id/like', authenticate, toggleLike);
 router.get('/:id/likes', optionalAuth, getPhotoLikers);
-router.get('/:id/comments', listComments);
+router.get('/:id/comments', optionalAuth, listComments);
 router.post('/:id/comments', authenticate, validate(commentSchema), addComment);
 router.put('/:id/comments/:commentId', authenticate, validate(commentSchema), updateComment);
 router.delete('/:id/comments/:commentId', authenticate, deleteComment);

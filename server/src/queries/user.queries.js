@@ -29,8 +29,14 @@ export const getPublicDirectoryUsers = async ({ search = '', angkatan = '', prod
   const [rows] = await pool.query(
     `SELECT u.id, u.nim, u.full_name, u.role, u.prodi, u.angkatan_year,
             u.avatar_url, u.bio, u.current_job, u.linkedin_url, u.instagram_url, u.github_url,
-            (SELECT COUNT(*) FROM photos p WHERE p.uploader_id = u.id AND p.status = 'approved') AS total_photos
+            COALESCE(pstats.total_photos, 0) AS total_photos
      FROM users u
+     LEFT JOIN (
+       SELECT uploader_id, COUNT(*) AS total_photos
+       FROM photos
+       WHERE status = 'approved'
+       GROUP BY uploader_id
+     ) pstats ON pstats.uploader_id = u.id
      ${whereSql}
      ORDER BY u.angkatan_year DESC, u.full_name ASC
      LIMIT ? OFFSET ?`,
@@ -68,13 +74,13 @@ export const getAdminUsersList = async ({ status = '', search = '', page = 1, li
   return { rows, total: countRows[0].total };
 };
 
-export const updateUserProfileById = async (userId, fields) => {
+export const updateUserProfileById = async (userId, fields, db = pool) => {
   const keys = Object.keys(fields);
   if (keys.length === 0) return;
 
   const setClause = keys.map((k) => `${k} = ?`).join(', ');
   const values = keys.map((k) => fields[k]);
-  await pool.query(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, userId]);
+  await db.query(`UPDATE users SET ${setClause} WHERE id = ?`, [...values, userId]);
 };
 
 export const getUserAvatarInfo = async (userId) => {
@@ -82,11 +88,11 @@ export const getUserAvatarInfo = async (userId) => {
   return rows[0] || null;
 };
 
-export const getUserProfileDetailQuery = async (userId) => {
+export const getUserProfileDetailQuery = async (userId, { requesterId = null, isStaff = false } = {}) => {
   const [rows] = await pool.query(
     `SELECT u.id, u.nim, u.full_name, u.role, u.status, u.prodi, u.angkatan_year,
             u.avatar_url, u.bio, u.current_job, u.linkedin_url, u.instagram_url, u.github_url,
-            u.created_at, u.verified_at,
+            u.is_public_profile, u.created_at, u.verified_at,
             (SELECT COUNT(*) FROM photos p WHERE p.uploader_id = u.id AND p.status = 'approved') AS total_photos
      FROM users u
      WHERE u.id = ? AND u.status = 'active'
@@ -96,6 +102,11 @@ export const getUserProfileDetailQuery = async (userId) => {
   if (rows.length === 0) return null;
 
   const user = rows[0];
+  const isSelf = requesterId && Number(requesterId) === Number(user.id);
+  if (!user.is_public_profile && !isSelf && !isStaff) {
+    return null;
+  }
+
   const [photos] = await pool.query(
     `SELECT p.id, p.url, p.caption, a.year AS angkatan_year, p.created_at
      FROM photos p

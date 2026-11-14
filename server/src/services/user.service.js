@@ -1,7 +1,12 @@
 // FILE: server/src/services/user.service.js
+import { pool } from '../config/db.js';
 import { AppError } from '../utils/AppError.js';
 import { uploadBufferToCloudinary, deleteFromCloudinary } from '../utils/cloudinaryUpload.js';
-import { findUserById, ensureAngkatanExists } from '../queries/auth.queries.js';
+import {
+  findUserById,
+  ensureAngkatanExists,
+  revokeAllUserRefreshTokens,
+} from '../queries/auth.queries.js';
 import { updateUserProfileById, getUserAvatarInfo } from '../queries/user.queries.js';
 import { createNotification } from '../queries/campus.queries.js';
 
@@ -33,18 +38,30 @@ export const updateMyProfileService = async (userId, payload, avatarFile = null)
     await ensureAngkatanExists(updateData.angkatan_year);
   }
 
+  let oldAvatar = null;
+  let newPublicId = null;
+
   if (avatarFile) {
-    const oldAvatar = await getUserAvatarInfo(userId);
+    oldAvatar = await getUserAvatarInfo(userId);
     const uploaded = await uploadBufferToCloudinary(avatarFile.buffer, 'avatars');
     updateData.avatar_url = uploaded.secure_url;
     updateData.avatar_public_id = uploaded.public_id;
-
-    if (oldAvatar?.avatar_public_id) {
-      await deleteFromCloudinary(oldAvatar.avatar_public_id);
-    }
+    newPublicId = uploaded.public_id;
   }
 
-  await updateUserProfileById(userId, updateData);
+  try {
+    await updateUserProfileById(userId, updateData);
+  } catch (err) {
+    if (newPublicId) {
+      await deleteFromCloudinary(newPublicId);
+    }
+    throw err;
+  }
+
+  if (newPublicId && oldAvatar?.avatar_public_id && oldAvatar.avatar_public_id !== newPublicId) {
+    await deleteFromCloudinary(oldAvatar.avatar_public_id);
+  }
+
   return findUserById(userId);
 };
 
@@ -52,6 +69,15 @@ export const verifyUserByAdminService = async ({ targetUserId, adminId, status, 
   const targetUser = await findUserById(targetUserId);
   if (!targetUser) {
     throw new AppError('Pengguna tidak ditemukan.', 404);
+  }
+
+  if (Number(targetUserId) === Number(adminId)) {
+    if ((role && role !== 'admin') || status !== 'active') {
+      throw new AppError(
+        'Anda tidak dapat menonaktifkan akun admin Anda sendiri atau menurunkan role Anda sendiri.',
+        400
+      );
+    }
   }
 
   const updateFields = {
@@ -64,16 +90,35 @@ export const verifyUserByAdminService = async ({ targetUserId, adminId, status, 
     updateFields.role = role;
   }
 
-  await updateUserProfileById(targetUserId, updateFields);
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
 
-  if (status === 'active') {
-    await createNotification({
-      userId: targetUserId,
-      type: 'account_verified',
-      title: 'Akun & NIM Terverifikasi',
-      message: 'Selamat datang di Portal Kampus UNAS PASIM! Akun Anda kini telah aktif sepenuhnya.',
-      referenceLink: '/profil',
-    });
+    await updateUserProfileById(targetUserId, updateFields, connection);
+
+    if (status !== 'active') {
+      await revokeAllUserRefreshTokens(targetUserId, connection);
+    }
+
+    if (status === 'active') {
+      await createNotification(
+        {
+          userId: targetUserId,
+          type: 'account_verified',
+          title: 'Akun & NIM Terverifikasi',
+          message: 'Selamat datang di Portal Kampus UNAS PASIM! Akun Anda kini telah aktif sepenuhnya.',
+          referenceLink: '/profil',
+        },
+        connection
+      );
+    }
+
+    await connection.commit();
+  } catch (err) {
+    await connection.rollback();
+    throw err;
+  } finally {
+    connection.release();
   }
 
   return findUserById(targetUserId);

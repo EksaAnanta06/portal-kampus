@@ -3,17 +3,20 @@ import cloudinary from '../config/cloudinary.js';
 import { env } from '../config/env.js';
 import { AppError } from './AppError.js';
 
+const hasCloudinaryConfig = () =>
+  Boolean(env.cloudinary.cloudName && env.cloudinary.apiKey && env.cloudinary.apiSecret);
+
 /**
- * Mengunggah file buffer dari Multer memoryStorage ke Cloudinary via upload_stream
+ * Mengunggah file buffer gambar ke Cloudinary via upload_stream
  */
 export const uploadBufferToCloudinary = (buffer, subFolder = 'gallery') => {
   return new Promise((resolve, reject) => {
-    // Fallback mode jika kredensial Cloudinary belum diisi saat testing lokal awal
-    if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
+    if (!hasCloudinaryConfig()) {
       const mockId = `mock_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       return resolve({
         public_id: `${env.cloudinary.folder}/${subFolder}/${mockId}`,
-        secure_url: 'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1080&q=80',
+        secure_url:
+          'https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=1080&q=80',
         width: 1080,
         height: 720,
         format: 'jpg',
@@ -40,36 +43,15 @@ export const uploadBufferToCloudinary = (buffer, subFolder = 'gallery') => {
 };
 
 /**
- * Menghapus file dari Cloudinary berdasarkan public_id
- */
-export const deleteFromCloudinary = async (publicId) => {
-  if (!publicId || publicId.startsWith('seed/') || publicId.includes('/mock_')) {
-    return { result: 'skipped_seed_or_mock' };
-  }
-  if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
-    return { result: 'skipped_unconfigured' };
-  }
-  try {
-    return await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
-  } catch (err) {
-    console.error(`[Cloudinary] Gagal menghapus public_id ${publicId}:`, err.message);
-    return null;
-  }
-};
-
-/**
- * Mengunggah file berkas dokumen/non-gambar (PDF, DOCX, ZIP, XLSX) ke Cloudinary sebagai raw resource
- * @param {Buffer} buffer - Buffer file
- * @param {string} subFolder - Subfolder (misal: 'tugas/1', 'pengumpulan/1/020123014', 'materi/1/pertemuan-1')
- * @param {Object} options - { accessType: 'authenticated' | 'upload', originalFilename: string }
+ * Mengunggah berkas dokumen/non-gambar ke Cloudinary sebagai raw resource
  */
 export const uploadRawBufferToCloudinary = (
   buffer,
   subFolder = 'documents',
-  { accessType = 'authenticated', originalFilename = '' } = {}
+  { accessType = 'upload', originalFilename = '' } = {}
 ) => {
   return new Promise((resolve, reject) => {
-    if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
+    if (!hasCloudinaryConfig()) {
       const mockId = `mock_raw_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       return resolve({
         public_id: `${env.cloudinary.folder}/${subFolder}/${mockId}`,
@@ -84,7 +66,7 @@ export const uploadRawBufferToCloudinary = (
     const uploadOptions = {
       folder: `${env.cloudinary.folder}/${subFolder}`,
       resource_type: 'raw',
-      type: accessType, // 'authenticated' untuk berkas tugas mahasiswa, 'upload' untuk berkas publik/soal
+      type: accessType,
       use_filename: true,
       unique_filename: true,
     };
@@ -100,11 +82,69 @@ export const uploadRawBufferToCloudinary = (
   });
 };
 
+export const deleteCloudinaryAsset = async (
+  publicId,
+  { resourceType = 'image', accessType = 'upload' } = {}
+) => {
+  if (!publicId || publicId.startsWith('seed/') || publicId.includes('/mock_') || publicId.startsWith('dummy_')) {
+    return { result: 'skipped_seed_or_mock' };
+  }
+  if (!hasCloudinaryConfig()) {
+    return { result: 'skipped_unconfigured' };
+  }
+
+  try {
+    const opts = { resource_type: resourceType };
+    if (resourceType === 'raw' && accessType) {
+      opts.type = accessType;
+    }
+    return await cloudinary.uploader.destroy(publicId, opts);
+  } catch (err) {
+    console.error(`[Cloudinary] Gagal menghapus ${resourceType} public_id ${publicId}:`, err.message);
+    return null;
+  }
+};
+
+export const deleteFromCloudinary = (publicId) =>
+  deleteCloudinaryAsset(publicId, { resourceType: 'image' });
+
+export const deleteRawFromCloudinary = (publicId, accessType = 'upload') =>
+  deleteCloudinaryAsset(publicId, { resourceType: 'raw', accessType });
+
 /**
- * Menghasilkan signed download URL berumur pendek (default 15 menit) untuk berkas authenticated / private
+ * Menghapus file materi (menentukan otomatis apakah image vs raw berdasarkan format atau fallback dua tipe)
+ */
+export const deleteMaterialAssetFromCloudinary = async (publicId, fileFormat = '') => {
+  if (!publicId || publicId.startsWith('dummy_') || publicId.includes('/mock_')) {
+    return { result: 'skipped' };
+  }
+  const fmt = (fileFormat || '').toLowerCase();
+  const isImage = ['jpg', 'jpeg', 'png', 'webp', 'gif'].includes(fmt);
+
+  if (isImage) {
+    return deleteCloudinaryAsset(publicId, { resourceType: 'image' });
+  }
+  const res = await deleteCloudinaryAsset(publicId, { resourceType: 'raw', accessType: 'upload' });
+  if (res?.result === 'not found') {
+    return deleteCloudinaryAsset(publicId, { resourceType: 'raw', accessType: 'authenticated' });
+  }
+  return res;
+};
+
+/**
+ * Mengekstrak public_id dari URL Cloudinary sebagai fallback jika public_id tidak tersimpan di DB
+ */
+export const extractCloudinaryPublicId = (url) => {
+  if (!url || typeof url !== 'string' || !url.includes('res.cloudinary.com')) return null;
+  const match = url.match(/\/upload\/(?:v\d+\/)?(.+?)(?:\.[^./?#]+)?(?:[?#].*)?$/);
+  return match ? match[1] : null;
+};
+
+/**
+ * Menghasilkan signed download URL berumur pendek
  */
 export const getSignedDownloadUrl = (publicId, format = '', expiresInSeconds = 900) => {
-  if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
+  if (!hasCloudinaryConfig()) {
     return `https://mock.pasim.ac.id/signed-download/${publicId}`;
   }
 
@@ -114,25 +154,4 @@ export const getSignedDownloadUrl = (publicId, format = '', expiresInSeconds = 9
     type: 'authenticated',
     expires_at: expiresAt,
   });
-};
-
-/**
- * Menghapus berkas raw dari Cloudinary
- */
-export const deleteRawFromCloudinary = async (publicId, accessType = 'authenticated') => {
-  if (!publicId || publicId.startsWith('seed/') || publicId.includes('/mock_')) {
-    return { result: 'skipped_seed_or_mock' };
-  }
-  if (!env.cloudinary.cloudName || !env.cloudinary.apiKey || !env.cloudinary.apiSecret) {
-    return { result: 'skipped_unconfigured' };
-  }
-  try {
-    return await cloudinary.uploader.destroy(publicId, {
-      resource_type: 'raw',
-      type: accessType,
-    });
-  } catch (err) {
-    console.error(`[Cloudinary] Gagal menghapus raw public_id ${publicId}:`, err.message);
-    return null;
-  }
 };

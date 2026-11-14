@@ -2,18 +2,11 @@
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendResponse } from '../utils/apiResponse.js';
 import { AppError } from '../utils/AppError.js';
-import { uploadBufferToCloudinary } from '../utils/cloudinaryUpload.js';
 import {
   listAnnouncementsQuery,
   getAnnouncementBySlugOrId,
-  createAnnouncementRecord,
-  updateAnnouncementRecord,
-  deleteAnnouncementRecord,
   listEventsQuery,
   getEventByIdQuery,
-  createEventRecord,
-  updateEventRecord,
-  deleteEventRecord,
   toggleEventLikeQuery,
   getEventLikersQuery,
   getEventCommentsQuery,
@@ -25,15 +18,17 @@ import {
   markNotificationsRead,
   getPublicHomeStats,
   getAdminDashboardStats,
-  globalSearchQuery,
 } from '../queries/campus.queries.js';
+import {
+  createAnnouncementService,
+  updateAnnouncementService,
+  deleteAnnouncementService,
+  createEventService,
+  updateEventService,
+  deleteEventService,
+  globalSearchService,
+} from '../services/campus.service.js';
 import { listPhotosQuery } from '../queries/photo.queries.js';
-
-const makeSlug = (title) =>
-  `${title
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')}-${Date.now().toString(36)}`;
 
 export const getHomeOverview = asyncHandler(async (req, res) => {
   const [stats, recentPhotosRes, announcementsRes, upcomingEvents] = await Promise.all([
@@ -81,21 +76,11 @@ export const getAnnouncementDetail = asyncHandler(async (req, res) => {
 });
 
 export const createAnnouncement = asyncHandler(async (req, res) => {
-  let banner_url = req.body.banner_url || null;
-
-  if (req.file) {
-    const uploaded = await uploadBufferToCloudinary(req.file.buffer, 'announcements');
-    banner_url = uploaded.secure_url;
-  }
-
-  const slug = makeSlug(req.body.title);
-  const id = await createAnnouncementRecord({
-    ...req.body,
-    banner_url,
-    slug,
-    author_id: req.user.id,
+  const created = await createAnnouncementService({
+    body: req.body,
+    file: req.file || null,
+    authorId: req.user.id,
   });
-  const created = await getAnnouncementBySlugOrId(id);
   return sendResponse(res, {
     statusCode: 201,
     message: 'Pengumuman kampus berhasil diterbitkan.',
@@ -104,24 +89,11 @@ export const createAnnouncement = asyncHandler(async (req, res) => {
 });
 
 export const updateAnnouncement = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const existing = await getAnnouncementBySlugOrId(id);
-  if (!existing) {
-    throw new AppError('Pengumuman tidak ditemukan.', 404);
-  }
-
-  let banner_url = req.body.banner_url !== undefined ? req.body.banner_url : existing.banner_url;
-
-  if (req.file) {
-    const uploaded = await uploadBufferToCloudinary(req.file.buffer, 'announcements');
-    banner_url = uploaded.secure_url;
-  }
-
-  await updateAnnouncementRecord(id, {
-    ...req.body,
-    banner_url,
+  const updated = await updateAnnouncementService({
+    id: Number(req.params.id),
+    body: req.body,
+    file: req.file || null,
   });
-  const updated = await getAnnouncementBySlugOrId(id);
   return sendResponse(res, {
     message: 'Pengumuman berhasil diperbarui.',
     data: updated,
@@ -129,7 +101,7 @@ export const updateAnnouncement = asyncHandler(async (req, res) => {
 });
 
 export const deleteAnnouncement = asyncHandler(async (req, res) => {
-  await deleteAnnouncementRecord(Number(req.params.id));
+  await deleteAnnouncementService(Number(req.params.id));
   return sendResponse(res, { message: 'Pengumuman berhasil dihapus.' });
 });
 
@@ -159,19 +131,11 @@ export const getEventDetail = asyncHandler(async (req, res) => {
 });
 
 export const createEvent = asyncHandler(async (req, res) => {
-  let banner_url = req.body.banner_url || null;
-
-  if (req.file) {
-    const uploaded = await uploadBufferToCloudinary(req.file.buffer, 'events');
-    banner_url = uploaded.secure_url;
-  }
-
-  const id = await createEventRecord({
-    ...req.body,
-    banner_url,
-    created_by: req.user.id,
+  const created = await createEventService({
+    body: req.body,
+    file: req.file || null,
+    userId: req.user.id,
   });
-  const created = await getEventByIdQuery(id, req.user.id);
   return sendResponse(res, {
     statusCode: 201,
     message: 'Agenda kampus berhasil ditambahkan.',
@@ -180,25 +144,12 @@ export const createEvent = asyncHandler(async (req, res) => {
 });
 
 export const updateEvent = asyncHandler(async (req, res) => {
-  const id = Number(req.params.id);
-  const existing = await getEventByIdQuery(id);
-  if (!existing) {
-    throw new AppError('Agenda kampus tidak ditemukan.', 404);
-  }
-
-  let banner_url = req.body.banner_url !== undefined ? req.body.banner_url : existing.banner_url;
-
-  if (req.file) {
-    const uploaded = await uploadBufferToCloudinary(req.file.buffer, 'events');
-    banner_url = uploaded.secure_url;
-  }
-
-  await updateEventRecord(id, {
-    ...req.body,
-    banner_url,
+  const updated = await updateEventService({
+    id: Number(req.params.id),
+    body: req.body,
+    file: req.file || null,
+    userId: req.user.id,
   });
-
-  const updated = await getEventByIdQuery(id, req.user.id);
   return sendResponse(res, {
     message: 'Agenda kampus berhasil diperbarui.',
     data: updated,
@@ -206,7 +157,7 @@ export const updateEvent = asyncHandler(async (req, res) => {
 });
 
 export const deleteEvent = asyncHandler(async (req, res) => {
-  await deleteEventRecord(Number(req.params.id));
+  await deleteEventService(Number(req.params.id));
   return sendResponse(res, { message: 'Agenda kampus berhasil dihapus.' });
 });
 
@@ -242,6 +193,11 @@ export const getEventLikers = asyncHandler(async (req, res) => {
 // ---------------- EVENT COMMENTS HANDLERS ----------------
 export const listEventComments = asyncHandler(async (req, res) => {
   const eventId = Number(req.params.id);
+  const event = await getEventByIdQuery(eventId);
+  if (!event) {
+    throw new AppError('Agenda tidak ditemukan.', 404);
+  }
+
   const comments = await getEventCommentsQuery(eventId);
   return sendResponse(res, {
     message: 'Komentar agenda berhasil dimuat.',
@@ -332,16 +288,9 @@ export const readNotifications = asyncHandler(async (req, res) => {
 
 export const globalSearch = asyncHandler(async (req, res) => {
   const q = (req.query.q || '').trim();
-  if (q.length < 2) {
-    return sendResponse(res, {
-      message: 'Masukkan minimal 2 karakter untuk mencari.',
-      data: { photos: [], announcements: [], users: [] },
-    });
-  }
-
-  const results = await globalSearchQuery(q);
+  const results = await globalSearchService(q, req.user || null);
   return sendResponse(res, {
-    message: `Hasil pencarian untuk "${q}".`,
+    message: q.length < 2 ? 'Masukkan minimal 2 karakter untuk mencari.' : `Hasil pencarian untuk "${q}".`,
     data: results,
   });
 });
