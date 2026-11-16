@@ -27,14 +27,18 @@ import AdminPanelSettingsRoundedIcon from '@mui/icons-material/AdminPanelSetting
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
+import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
+import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import { BrandLogo } from '../components/common/BrandLogo';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import GlobalSearchModal from '../components/common/GlobalSearchModal';
 import NotificationMenu from '../components/common/NotificationMenu';
+import MiniFocusTimerBar from '../components/focus/MiniFocusTimerBar';
+import FocusCompletionDialog from '../components/focus/FocusCompletionDialog';
 import useAuthStore, { selectIsStaff } from '../store/useAuthStore';
 import useThemeStore, { toast } from '../store/useThemeStore';
 import { getOptimizedImageUrl } from '../hooks/useCloudinaryUrl';
-import { ROLE_LABELS, getInitials } from '../utils/constants';
+import { ASSIGNMENT_HUB_ROLES, ROLE_LABELS, getInitials } from '../utils/constants';
 
 const navLinkClass = ({ isActive }) =>
   `flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 ${
@@ -49,6 +53,7 @@ export default function MainLayout() {
   const user = useAuthStore((s) => s.user);
   const isLoggedIn = useAuthStore((s) => Boolean(s.accessToken && s.user));
   const isStaff = useAuthStore(selectIsStaff);
+  const canAccessFocusPlanner = Boolean(isLoggedIn && ASSIGNMENT_HUB_ROLES.includes(user?.role));
   const logout = useAuthStore((s) => s.logout);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -89,6 +94,12 @@ export default function MainLayout() {
       ? [
           { to: '/direktori', label: 'Direktori Mahasiswa & Alumni', icon: <GroupsRoundedIcon fontSize="small" /> },
           { to: '/akademik/materi', label: 'Materi Perpustakaan', icon: <MenuBookRoundedIcon fontSize="small" /> },
+        ]
+      : []),
+    ...(canAccessFocusPlanner
+      ? [
+          { to: '/rencana', label: 'Rencana & Tugas', icon: <TaskAltRoundedIcon fontSize="small" /> },
+          { to: '/fokus', label: 'Timer Fokus', icon: <TimerRoundedIcon fontSize="small" /> },
         ]
       : []),
   ];
@@ -350,6 +361,32 @@ export default function MainLayout() {
                       </ListItemIcon>
                       Materi Perpustakaan
                     </MenuItem>
+                    {canAccessFocusPlanner && (
+                      <MenuItem
+                        onClick={() => {
+                          setUserMenuAnchor(null);
+                          navigate('/rencana');
+                        }}
+                      >
+                        <ListItemIcon>
+                          <TaskAltRoundedIcon fontSize="small" />
+                        </ListItemIcon>
+                        Rencana & Tugas
+                      </MenuItem>
+                    )}
+                    {canAccessFocusPlanner && (
+                      <MenuItem
+                        onClick={() => {
+                          setUserMenuAnchor(null);
+                          navigate('/fokus');
+                        }}
+                      >
+                        <ListItemIcon>
+                          <TimerRoundedIcon fontSize="small" />
+                        </ListItemIcon>
+                        Timer Fokus
+                      </MenuItem>
+                    )}
                     {isStaff && (
                       <MenuItem
                         onClick={() => {
@@ -384,7 +421,7 @@ export default function MainLayout() {
         </AppBar>
 
         {/* Dashboard Main View */}
-        <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-8 w-full max-w-full overflow-x-hidden">
+        <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-16 w-full max-w-full overflow-x-hidden">
           <div className="mx-auto max-w-7xl w-full min-w-0">
             <Outlet />
           </div>
@@ -438,37 +475,41 @@ export default function MainLayout() {
               </NavLink>
             )}
 
-            <NavLink
-              to="/pengumuman"
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
-                  isActive
-                    ? 'text-pasim dark:text-pasim-300'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`
-              }
-            >
-              <CampaignRoundedIcon sx={{ fontSize: 20 }} />
-              <span>Warta</span>
-            </NavLink>
+            {!canAccessFocusPlanner && (
+              <>
+                <NavLink
+                  to="/pengumuman"
+                  className={({ isActive }) =>
+                    `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
+                      isActive
+                        ? 'text-pasim dark:text-pasim-300'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    }`
+                  }
+                >
+                  <CampaignRoundedIcon sx={{ fontSize: 20 }} />
+                  <span>Warta</span>
+                </NavLink>
 
-            <NavLink
-              to="/agenda"
-              className={({ isActive }) =>
-                `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
-                  isActive
-                    ? 'text-pasim dark:text-pasim-300'
-                    : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
-                }`
-              }
-            >
-              <EventAvailableRoundedIcon sx={{ fontSize: 20 }} />
-              <span>Agenda</span>
-            </NavLink>
+                <NavLink
+                  to="/agenda"
+                  className={({ isActive }) =>
+                    `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
+                      isActive
+                        ? 'text-pasim dark:text-pasim-300'
+                        : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    }`
+                  }
+                >
+                  <EventAvailableRoundedIcon sx={{ fontSize: 20 }} />
+                  <span>Agenda</span>
+                </NavLink>
+              </>
+            )}
 
-            {isLoggedIn ? (
+            {canAccessFocusPlanner && (
               <NavLink
-                to="/direktori"
+                to="/rencana"
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                     isActive
@@ -477,10 +518,28 @@ export default function MainLayout() {
                   }`
                 }
               >
-                <GroupsRoundedIcon sx={{ fontSize: 20 }} />
-                <span>Direktori</span>
+                <TaskAltRoundedIcon sx={{ fontSize: 20 }} />
+                <span>Rencana</span>
               </NavLink>
-            ) : (
+            )}
+
+            {canAccessFocusPlanner && (
+              <NavLink
+                to="/fokus"
+                className={({ isActive }) =>
+                  `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
+                    isActive
+                      ? 'text-pasim dark:text-pasim-300'
+                      : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                  }`
+                }
+              >
+                <TimerRoundedIcon sx={{ fontSize: 20 }} />
+                <span>Fokus</span>
+              </NavLink>
+            )}
+
+            {!isLoggedIn && (
               <NavLink
                 to="/login"
                 className={({ isActive }) =>
@@ -499,6 +558,8 @@ export default function MainLayout() {
         </div>
       </div>
 
+      <MiniFocusTimerBar />
+      <FocusCompletionDialog />
       <GlobalSearchModal open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );

@@ -23,6 +23,7 @@ import { campusApi } from '../api/campus.api';
 import { galleryApi } from '../api/gallery.api';
 import PhotoMasonryGrid from '../components/gallery/PhotoMasonryGrid';
 import AngkatanCard from '../components/gallery/AngkatanCard';
+import NextSessionWidget from '../components/focus/NextSessionWidget';
 import useAuthStore from '../store/useAuthStore';
 import { CATEGORY_LABELS } from '../utils/constants';
 import { formatShortDate, formatEventRange, getDateParts } from '../utils/formatDate';
@@ -189,6 +190,9 @@ export default function HomePage() {
         <div className="pointer-events-none absolute -left-10 -top-10 h-64 w-64 rounded-full bg-pasim-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-10 -right-10 h-64 w-64 rounded-full bg-gold/20 blur-3xl" />
       </div>
+
+      {/* Widget Beranda Tunggal: Sesi Fokus / Jadwal Terdekat */}
+      <NextSessionWidget />
 
       {/* 2. STATISTIC METRIC CARDS */}
       <div className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4">

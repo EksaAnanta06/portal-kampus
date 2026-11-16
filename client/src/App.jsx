@@ -9,6 +9,8 @@ import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 import AdminLayout from './layouts/AdminLayout';
 import useAuthStore from './store/useAuthStore';
+import { ASSIGNMENT_HUB_ROLES } from './utils/constants';
+import { registerPortalServiceWorker } from './utils/pushNotifications';
 
 // Halaman di-lazy-load agar bundle awal kecil
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -30,6 +32,8 @@ const ManageMaterialsPage = lazy(() => import('./pages/admin/ManageMaterialsPage
 const MaterialsLibraryPage = lazy(() => import('./pages/academic/MaterialsLibraryPage'));
 const CourseMaterialsPage = lazy(() => import('./pages/academic/CourseMaterialsPage'));
 const MaterialDetailPage = lazy(() => import('./pages/academic/MaterialDetailPage'));
+const FocusTimerPage = lazy(() => import('./pages/focus/FocusTimerPage'));
+const StudyPlannerPage = lazy(() => import('./pages/focus/StudyPlannerPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export function PageLoader() {
@@ -55,6 +59,7 @@ export default function App() {
   // Pulihkan sesi dari cookie refresh token saat aplikasi dibuka
   useEffect(() => {
     initAuth();
+    registerPortalServiceWorker().catch(() => {});
   }, [initAuth]);
 
   return (
@@ -78,6 +83,13 @@ export default function App() {
               <Route path="akademik/materi" element={<MaterialsLibraryPage />} />
               <Route path="akademik/materi/matkul/:courseId" element={<CourseMaterialsPage />} />
               <Route path="akademik/materi/detail/:materialId" element={<MaterialDetailPage />} />
+
+              {/* Penjadwalan Tugas, Timer Fokus & Statistik (Hak Akses Assignment Hub) */}
+              <Route element={<RoleRoute roles={ASSIGNMENT_HUB_ROLES} />}>
+                <Route path="rencana" element={<StudyPlannerPage />} />
+                <Route path="tugas" element={<StudyPlannerPage />} />
+                <Route path="fokus" element={<FocusTimerPage />} />
+              </Route>
             </Route>
           </Route>
 

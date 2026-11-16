@@ -1,0 +1,24 @@
+{
+  "name": "Portal Kampus UNAS PASIM Bandung",
+  "short_name": "Portal PASIM",
+  "description": "Portal akademik, perpustakaan materi, pengingat tugas, dan timer fokus Universitas Nasional Pasim Bandung.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0F172A",
+  "theme_color": "#8B1E24",
+  "lang": "id-ID",
+  "icons": [
+    {
+      "src": "/logo-pasim.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo-pasim.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

@@ -14,6 +14,8 @@ import ChatBubbleRoundedIcon from '@mui/icons-material/ChatBubbleRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import VerifiedUserRoundedIcon from '@mui/icons-material/VerifiedUserRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
+import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
+import EventNoteRoundedIcon from '@mui/icons-material/EventNoteRounded';
 import { campusApi } from '../../api/campus.api';
 import { formatRelative } from '../../utils/formatDate';
 
@@ -29,6 +31,8 @@ const TYPE_ICON = {
   course_approved: <CheckCircleRoundedIcon fontSize="small" className="text-emerald-500" />,
   course_rejected: <CancelRoundedIcon fontSize="small" className="text-red-500" />,
   request_fulfilled: <CheckCircleRoundedIcon fontSize="small" className="text-sky-500" />,
+  focus_reminder: <TimerRoundedIcon fontSize="small" className="text-pasim" />,
+  task_deadline: <EventNoteRoundedIcon fontSize="small" className="text-amber-500" />,
   system: <InfoRoundedIcon fontSize="small" className="text-amber-500" />,
 };
 

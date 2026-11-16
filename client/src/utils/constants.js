@@ -33,6 +33,34 @@ export const ROLES = {
 
 export const STAFF_ROLES = [ROLES.ADMIN, ROLES.MODERATOR];
 
+// Hak akses Assignment Hub, Penjadwalan Tugas & Timer Fokus (alumni dikecualikan)
+export const ASSIGNMENT_HUB_ROLES = [ROLES.MAHASISWA, ROLES.MODERATOR, ROLES.ADMIN];
+
+export const TASK_PRIORITIES = [
+  { value: 'tinggi', label: 'Prioritas Tinggi', color: 'error' },
+  { value: 'sedang', label: 'Prioritas Sedang', color: 'warning' },
+  { value: 'rendah', label: 'Prioritas Rendah', color: 'default' },
+];
+
+export const TASK_STATUS_LABELS = {
+  belum_mulai: 'Belum Mulai',
+  sedang_dikerjakan: 'Sedang Dikerjakan',
+  selesai: 'Selesai',
+};
+
+export const SCHEDULE_STATUS_META = {
+  terjadwal: { label: 'Terjadwal', color: 'primary' },
+  selesai: { label: 'Selesai', color: 'success' },
+  dilewati: { label: 'Dilewati', color: 'default' },
+  terlewat: { label: 'Terlewat', color: 'warning' },
+};
+
+export const TIMER_MODE_LABELS = {
+  fokus: 'Fokus',
+  istirahat_pendek: 'Istirahat Pendek',
+  istirahat_panjang: 'Istirahat Panjang',
+};
+
 export const ROLE_LABELS = {
   admin: 'Admin',
   moderator: 'Moderator',
