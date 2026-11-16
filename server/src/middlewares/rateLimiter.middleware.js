@@ -39,3 +39,29 @@ export const zipDownloadLimiter = rateLimit({
     meta: null,
   },
 });
+
+export const focusTimerLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 menit
+  max: 60, // maksimal 60 aksi timer per menit per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Terlalu banyak permintaan sinkronisasi timer dalam waktu singkat. Coba sebentar lagi.',
+    data: null,
+    meta: null,
+  },
+});
+
+export const pushSubscriptionLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 menit
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Terlalu banyak permintaan pendaftaran notifikasi push. Silakan coba beberapa saat lagi.',
+    data: null,
+    meta: null,
+  },
+});

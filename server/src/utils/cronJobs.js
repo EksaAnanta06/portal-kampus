@@ -1,6 +1,7 @@
 // FILE: server/src/utils/cronJobs.js
 import cron from 'node-cron';
 import { pool } from '../config/db.js';
+import { processDueRemindersAndMissedSessions } from '../services/reminder.service.js';
 
 const scheduledTasks = [];
 
@@ -44,8 +45,21 @@ export const initCronJobs = () => {
     }
   );
 
-  scheduledTasks.push(tokenCleanupTask);
-  console.log('🕒 [CRON] Background task scheduler (pembersihan token harian) aktif.');
+  const reminderDispatchTask = cron.schedule(
+    '* * * * *',
+    () => {
+      void processDueRemindersAndMissedSessions();
+    },
+    {
+      name: 'focus-reminder-dispatcher',
+      timezone: 'UTC',
+      noOverlap: true,
+      unref: true,
+    }
+  );
+
+  scheduledTasks.push(tokenCleanupTask, reminderDispatchTask);
+  console.log('🕒 [CRON] Background scheduler aktif (pembersihan token harian & pengingat fokus per menit).');
 };
 
 export const stopCronJobs = async () => {

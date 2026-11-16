@@ -37,6 +37,12 @@ const REQUIRED_CORE_TABLES = [
   'paket_belajar',
   'paket_belajar_item',
   'materi_laporan',
+  'tugas_pribadi',
+  'sesi_jadwal',
+  'fokus_sesi',
+  'fokus_pengaturan',
+  'pengingat',
+  'push_subscriptions',
 ];
 
 /**
@@ -53,7 +59,7 @@ export const verifyDatabaseSchema = async () => {
     if (missingTables.length > 0) {
       console.warn(
         `⚠️ [DB] Tabel berikut belum ditemukan di "${env.db.database}": ${missingTables.join(', ')}. ` +
-          'Silakan import database/schema.sql dan database/migrations/001_peer_materials_library_up.sql.'
+          'Silakan import database/schema.sql dan migrasi database/migrations/001..004.'
       );
       return;
     }

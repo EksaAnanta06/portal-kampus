@@ -7,6 +7,7 @@ import albumRoutes from './album.routes.js';
 import photoRoutes from './photo.routes.js';
 import campusRoutes from './campus.routes.js';
 import materialRoutes from './material.routes.js';
+import focusRoutes from './focus.routes.js';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/albums', albumRoutes);
 router.use('/photos', photoRoutes);
 router.use('/campus', campusRoutes);
 router.use('/materials', materialRoutes);
+router.use('/focus', focusRoutes);
 
 export default router;
