@@ -28,7 +28,6 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import SkipNextRoundedIcon from '@mui/icons-material/SkipNextRounded';
 import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
 import { focusApi } from '../../api/focus.api';
-import { materialApi } from '../../api/material.api';
 import { getErrorMessage } from '../../api/axiosInstance';
 import { toast } from '../../store/useThemeStore';
 import {
@@ -96,7 +95,6 @@ export default function StudyPlannerPage() {
   const [warnings, setWarnings] = useState(null);
   const [settings, setSettings] = useState(timerSettings);
   const [stats, setStats] = useState(null);
-  const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statsLoading, setStatsLoading] = useState(false);
 
@@ -119,16 +117,14 @@ export default function StudyPlannerPage() {
   const loadPlannerData = useCallback(async () => {
     setLoading(true);
     try {
-      const [tasksRes, schedRes, coursesRes] = await Promise.all([
+      const [tasksRes, schedRes] = await Promise.all([
         focusApi.getTasks(),
         focusApi.getSchedules(),
-        materialApi.getCourses().catch(() => ({ data: [] })),
       ]);
       setTasks(tasksRes.data || []);
       setSchedules(schedRes.data?.schedules || []);
       setWarnings(schedRes.data?.warnings || null);
       if (schedRes.data?.settings) setSettings(schedRes.data.settings);
-      setCourses(coursesRes.data || []);
     } catch (err) {
       toast.error(getErrorMessage(err, 'Gagal memuat data rencana dan tugas.'));
     } finally {
@@ -494,9 +490,9 @@ export default function StudyPlannerPage() {
                                 {formatTime(item.mulai_at)} WIB · {item.durasi_menit} mnt
                               </span>
                               <Chip size="small" color={meta.color} label={meta.label} className="!h-5 !text-[11px]" />
-                              {item.matkul_kode && (
+                              {item.kategori && (
                                 <span className="text-[11px] font-semibold text-slate-400">
-                                  {item.matkul_kode}
+                                  {item.kategori}
                                 </span>
                               )}
                             </div>
@@ -608,9 +604,9 @@ export default function StudyPlannerPage() {
                             label={TASK_STATUS_LABELS[t.status] || t.status}
                             className="!h-5 !text-[10px]"
                           />
-                          {t.matkul_kode && (
+                          {t.kategori && (
                             <span className="text-[11px] font-bold text-slate-400">
-                              {t.matkul_kode}
+                              {t.kategori}
                             </span>
                           )}
                         </div>
@@ -819,7 +815,6 @@ export default function StudyPlannerPage() {
         open={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
         initialTask={editingTask}
-        courses={courses}
         onSaved={loadPlannerData}
       />
 

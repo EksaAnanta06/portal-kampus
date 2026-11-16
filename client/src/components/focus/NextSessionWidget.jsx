@@ -113,7 +113,7 @@ export default function NextSessionWidget() {
               </h3>
               <p className="m-0 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                 {formatDateTime(nextSchedule.mulai_at)}
-                {nextSchedule.matkul_nama ? ` · ${nextSchedule.matkul_nama}` : ''}
+                {nextSchedule.kategori ? ` · ${nextSchedule.kategori}` : ''}
               </p>
             </>
           ) : (

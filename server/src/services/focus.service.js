@@ -38,13 +38,6 @@ export const listTasksService = async (userId, query = {}) => {
 };
 
 export const createTaskService = async (userId, payload) => {
-  if (payload.mata_kuliah_id) {
-    const validCourse = await focusRepo.courseExists(payload.mata_kuliah_id);
-    if (!validCourse) {
-      throw new AppError('Mata kuliah yang dipilih tidak ditemukan.', 404);
-    }
-  }
-
   const created = await focusRepo.createUserTask(userId, payload);
   await syncTaskReminders(created.id, userId);
   return focusRepo.getUserTaskById(created.id, userId);
@@ -54,13 +47,6 @@ export const updateTaskService = async (taskId, userId, payload) => {
   const existing = await focusRepo.getUserTaskById(taskId, userId);
   if (!existing) {
     throw new AppError('Tugas tidak ditemukan atau Anda tidak memiliki akses.', 404);
-  }
-
-  if (payload.mata_kuliah_id) {
-    const validCourse = await focusRepo.courseExists(payload.mata_kuliah_id);
-    if (!validCourse) {
-      throw new AppError('Mata kuliah yang dipilih tidak ditemukan.', 404);
-    }
   }
 
   const nextFields = { ...payload };
@@ -702,7 +688,7 @@ export const unsubscribePushService = async (userId, endpoint) => {
 // ============================================================================
 
 /**
- * Menghitung agregasi statistik fokus (hari ini, 7 hari, per mata kuliah, per tugas, streak).
+ * Menghitung agregasi statistik fokus (hari ini, 7 hari, per kategori/topik, per tugas, streak).
  */
 export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = {}, nowUtcMs = Date.now()) => {
   const tz = resolveTimeZone(settings.zona_waktu);
@@ -715,7 +701,7 @@ export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = 
 
   const dayMap = new Map(sevenDaysKeys.map((dk) => [dk, { date_key: dk, total_detik: 0, jumlah_sesi: 0 }]));
   const activeDaySet = new Set();
-  const courseMap = new Map();
+  const categoryMap = new Map();
   let todaySeconds = 0;
 
   for (const s of sessions) {
@@ -739,17 +725,15 @@ export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = 
       entry.jumlah_sesi += 1;
     }
 
-    const courseKey = s.mata_kuliah_id ? String(s.mata_kuliah_id) : 'tanpa_matkul';
-    if (!courseMap.has(courseKey)) {
-      courseMap.set(courseKey, {
-        mata_kuliah_id: s.mata_kuliah_id || null,
-        matkul_kode: s.matkul_kode || '-',
-        matkul_nama: s.matkul_nama || 'Fokus Bebas / Umum',
+    const kategoriLabel = s.kategori?.trim() || 'Fokus Bebas';
+    if (!categoryMap.has(kategoriLabel)) {
+      categoryMap.set(kategoriLabel, {
+        kategori: kategoriLabel,
         total_detik: 0,
         jumlah_sesi: 0,
       });
     }
-    const cEntry = courseMap.get(courseKey);
+    const cEntry = categoryMap.get(kategoriLabel);
     cEntry.total_detik += focusSeconds;
     cEntry.jumlah_sesi += 1;
   }
@@ -773,7 +757,7 @@ export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = 
 
   const tujuhHariMenit = harian7Hari.reduce((acc, d) => acc + d.total_menit, 0);
 
-  const perMatkul = [...courseMap.values()]
+  const perKategori = [...categoryMap.values()]
     .map((c) => ({
       ...c,
       total_menit: Math.round(c.total_detik / 60),
@@ -785,9 +769,8 @@ export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = 
     .map((t) => ({
       id: t.id,
       judul: t.judul,
+      kategori: t.kategori || 'Belajar Mandiri',
       status: t.status,
-      matkul_kode: t.matkul_kode,
-      matkul_nama: t.matkul_nama,
       estimasi_menit: t.estimasi_menit ? Number(t.estimasi_menit) : null,
       fokus_menit: Math.round(Number(t.total_fokus_detik || 0) / 60),
       jumlah_sesi_fokus: Number(t.jumlah_sesi_fokus || 0),
@@ -800,7 +783,7 @@ export const computeFocusStatsFromData = (sessions = [], tasks = [], settings = 
     total_sesi_selesai: sessions.length,
     streak_hari: streakHari,
     harian_7_hari: harian7Hari,
-    per_matkul: perMatkul,
+    per_kategori: perKategori,
     per_tugas: perTugas,
   };
 };

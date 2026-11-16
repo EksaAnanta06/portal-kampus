@@ -76,14 +76,8 @@ export const updateSettings = async (userId, fields, db = pool) => {
 };
 
 // ============================================================================
-// TUGAS PRIBADI (MEMAKAI ULANG TABEL tugas_pribadi)
+// TUGAS PRIBADI MANDIRI (tugas_pribadi — tanpa relasi ke tabel LMS/mata kuliah)
 // ============================================================================
-
-export const courseExists = async (mataKuliahId, db = pool) => {
-  if (!mataKuliahId) return true;
-  const [rows] = await db.query('SELECT id FROM mata_kuliah WHERE id = ? LIMIT 1', [mataKuliahId]);
-  return rows.length > 0;
-};
 
 export const listUserTasks = async (userId, { status } = {}, db = pool) => {
   const params = [userId];
@@ -97,7 +91,7 @@ export const listUserTasks = async (userId, { status } = {}, db = pool) => {
     `SELECT
         tp.id,
         tp.user_id,
-        tp.mata_kuliah_id,
+        tp.kategori,
         tp.judul,
         tp.deskripsi,
         tp.prioritas,
@@ -108,15 +102,12 @@ export const listUserTasks = async (userId, { status } = {}, db = pool) => {
         DATE_FORMAT(tp.completed_at, '%Y-%m-%dT%H:%i:%sZ') AS completed_at,
         tp.created_at,
         tp.updated_at,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama,
         COALESCE(fs_agg.total_fokus_detik, 0) AS total_fokus_detik,
         COALESCE(fs_agg.jumlah_sesi_fokus, 0) AS jumlah_sesi_fokus,
         COALESCE(sj_agg.jadwal_mendatang_count, 0) AS jadwal_mendatang_count,
         COALESCE(sj_agg.total_jadwal_menit, 0) AS total_jadwal_menit,
         DATE_FORMAT(sj_agg.sesi_terdekat_at, '%Y-%m-%dT%H:%i:%sZ') AS sesi_terdekat_at
      FROM tugas_pribadi tp
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      LEFT JOIN (
        SELECT
          tugas_id,
@@ -152,7 +143,7 @@ export const getUserTaskById = async (taskId, userId, db = pool) => {
     `SELECT
         tp.id,
         tp.user_id,
-        tp.mata_kuliah_id,
+        tp.kategori,
         tp.judul,
         tp.deskripsi,
         tp.prioritas,
@@ -160,11 +151,8 @@ export const getUserTaskById = async (taskId, userId, db = pool) => {
         DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at,
         tp.estimasi_menit,
         DATE_FORMAT(tp.target_mulai, '%Y-%m-%dT%H:%i:%sZ') AS target_mulai,
-        DATE_FORMAT(tp.completed_at, '%Y-%m-%dT%H:%i:%sZ') AS completed_at,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama
+        DATE_FORMAT(tp.completed_at, '%Y-%m-%dT%H:%i:%sZ') AS completed_at
      FROM tugas_pribadi tp
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      WHERE tp.id = ? AND tp.user_id = ?
      LIMIT 1`,
     [taskId, userId]
@@ -175,11 +163,11 @@ export const getUserTaskById = async (taskId, userId, db = pool) => {
 export const createUserTask = async (userId, payload, db = pool) => {
   const [result] = await db.query(
     `INSERT INTO tugas_pribadi
-      (user_id, mata_kuliah_id, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
+      (user_id, kategori, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       userId,
-      payload.mata_kuliah_id || null,
+      payload.kategori || 'Belajar Mandiri',
       payload.judul,
       payload.deskripsi || null,
       payload.prioritas || 'sedang',
@@ -194,7 +182,7 @@ export const createUserTask = async (userId, payload, db = pool) => {
 
 export const updateUserTask = async (taskId, userId, fields, db = pool) => {
   const allowed = [
-    'mata_kuliah_id',
+    'kategori',
     'judul',
     'deskripsi',
     'prioritas',
@@ -261,16 +249,13 @@ export const listUserSchedules = async (userId, { fromUtc, toUtc, tugasId, statu
         sj.status,
         sj.created_at,
         tp.judul AS judul_tugas,
+        tp.kategori,
         tp.prioritas AS prioritas_tugas,
         tp.status AS status_tugas,
         tp.estimasi_menit,
-        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at,
-        mk.id AS mata_kuliah_id,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama
+        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at
      FROM sesi_jadwal sj
      INNER JOIN tugas_pribadi tp ON tp.id = sj.tugas_id
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      WHERE ${clauses.join(' AND ')}
      ORDER BY sj.mulai_at ASC`,
     params
@@ -288,13 +273,11 @@ export const getScheduleById = async (scheduleId, userId, db = pool) => {
         sj.durasi_menit,
         sj.status,
         tp.judul AS judul_tugas,
+        tp.kategori,
         tp.status AS status_tugas,
-        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama
+        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at
      FROM sesi_jadwal sj
      INNER JOIN tugas_pribadi tp ON tp.id = sj.tugas_id
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      WHERE sj.id = ? AND sj.user_id = ?
      LIMIT 1`,
     [scheduleId, userId]
@@ -345,12 +328,10 @@ export const getNextScheduledSessionForUser = async (userId, db = pool) => {
         sj.durasi_menit,
         sj.status,
         tp.judul AS judul_tugas,
-        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama
+        tp.kategori,
+        DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_at
      FROM sesi_jadwal sj
      INNER JOIN tugas_pribadi tp ON tp.id = sj.tugas_id
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      WHERE sj.user_id = ?
        AND sj.status = 'terjadwal'
        AND DATE_ADD(sj.mulai_at, INTERVAL sj.durasi_menit MINUTE) >= UTC_TIMESTAMP()
@@ -381,13 +362,11 @@ const FOCUS_SESSION_SELECT = `
     fs.catatan,
     fs.siklus_ke,
     tp.judul AS judul_tugas,
+    tp.kategori,
     tp.status AS status_tugas,
-    DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_tugas,
-    mk.kode AS matkul_kode,
-    mk.nama AS matkul_nama
+    DATE_FORMAT(tp.deadline_at, '%Y-%m-%dT%H:%i:%sZ') AS deadline_tugas
   FROM fokus_sesi fs
   LEFT JOIN tugas_pribadi tp ON tp.id = fs.tugas_id
-  LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
 `;
 
 export const getActiveFocusSession = async (userId, db = pool, forUpdate = false) => {
@@ -457,13 +436,10 @@ export const listCompletedFocusForStats = async (userId, db = pool) => {
         DATE_FORMAT(fs.mulai_at, '%Y-%m-%dT%H:%i:%sZ') AS mulai_at,
         DATE_FORMAT(fs.selesai_at, '%Y-%m-%dT%H:%i:%sZ') AS selesai_at,
         tp.judul AS judul_tugas,
-        tp.estimasi_menit,
-        tp.mata_kuliah_id,
-        mk.kode AS matkul_kode,
-        mk.nama AS matkul_nama
+        tp.kategori,
+        tp.estimasi_menit
      FROM fokus_sesi fs
      LEFT JOIN tugas_pribadi tp ON tp.id = fs.tugas_id
-     LEFT JOIN mata_kuliah mk ON mk.id = tp.mata_kuliah_id
      WHERE fs.user_id = ? AND fs.status = 'selesai' AND fs.tipe = 'fokus'
      ORDER BY fs.selesai_at DESC`,
     [userId]

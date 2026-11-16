@@ -316,9 +316,7 @@ import { errorHandler } from '../src/middlewares/error.middleware.js';
     return {
       id: Math.random(),
       tugas_id: 1,
-      mata_kuliah_id: 2,
-      matkul_kode: 'IF1201',
-      matkul_nama: 'Struktur Data',
+      kategori: 'Proyek Coding',
       durasi_rencana_detik: durMin * 60,
       total_jeda_detik: 0,
       mulai_at: new Date(start).toISOString(),
@@ -328,16 +326,17 @@ import { errorHandler } from '../src/middlewares/error.middleware.js';
 
   const stats = computeFocusStatsFromData(
     [makeFocus('2026-11-16', 25), makeFocus('2026-11-15', 50), makeFocus('2026-11-14', 25)],
-    [{ id: 1, judul: 'Stack', status: 'sedang_dikerjakan', estimasi_menit: 150, total_fokus_detik: 6000, jumlah_sesi_fokus: 3 }],
+    [{ id: 1, judul: 'Stack', kategori: 'Proyek Coding', status: 'sedang_dikerjakan', estimasi_menit: 150, total_fokus_detik: 6000, jumlah_sesi_fokus: 3 }],
     { zona_waktu: 'Asia/Jakarta' },
     nowUtcMs
   );
   assert.equal(stats.hari_ini_menit, 25);
   assert.equal(stats.tujuh_hari_menit, 100);
   assert.equal(stats.streak_hari, 3);
-  assert.equal(stats.per_matkul[0].total_menit, 100);
+  assert.equal(stats.per_kategori[0].kategori, 'Proyek Coding');
+  assert.equal(stats.per_kategori[0].total_menit, 100);
 
-  console.log('PASS 6: Focus stats aggregation (today, 7d, per-course, 3-day streak)');
+  console.log('PASS 6: Focus stats aggregation (today, 7d, per-category, 3-day streak)');
 }
 
 // ============================================================================

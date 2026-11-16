@@ -135,22 +135,21 @@ export default function FocusStatsTab({ stats, loading }) {
         </div>
       </div>
 
-      {/* Grid 2 Kolom: Per Mata Kuliah & Per Tugas */}
+      {/* Grid 2 Kolom: Per Kategori/Topik & Per Tugas */}
       <div className="grid gap-5 lg:grid-cols-2">
         <div className="card-surface p-5 space-y-3">
           <h3 className="m-0 text-sm font-extrabold text-slate-900 dark:text-white">
-            Waktu Fokus per Mata Kuliah
+            Waktu Fokus per Kategori / Topik
           </h3>
-          {!stats.per_matkul || stats.per_matkul.length === 0 ? (
+          {!stats.per_kategori || stats.per_kategori.length === 0 ? (
             <p className="text-xs text-slate-400 m-0 py-4">Belum ada catatan sesi fokus selesai.</p>
           ) : (
             <div className="space-y-3">
-              {stats.per_matkul.map((c) => (
-                <div key={`${c.mata_kuliah_id || 'umum'}`} className="flex items-center justify-between gap-3">
+              {stats.per_kategori.map((c) => (
+                <div key={c.kategori} className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">
-                      {c.matkul_kode && c.matkul_kode !== '-' ? `${c.matkul_kode} · ` : ''}
-                      {c.matkul_nama}
+                      {c.kategori}
                     </div>
                     <div className="text-[11px] text-slate-400">{c.jumlah_sesi} sesi selesai</div>
                   </div>

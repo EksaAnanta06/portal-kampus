@@ -49,8 +49,13 @@ export const tasksQuerySchema = z.object({
   status: z.enum(TASK_STATUSES).optional(),
 });
 
+const nullableKategoriSchema = z.preprocess(
+  (val) => (typeof val === 'string' && val.trim() === '' ? null : val),
+  z.string().trim().max(100, 'Kategori maksimal 100 karakter.').nullable().optional()
+);
+
 export const createTaskSchema = z.object({
-  mata_kuliah_id: nullablePositiveInt('Mata Kuliah', 999999),
+  kategori: nullableKategoriSchema,
   judul: z
     .string({ required_error: 'Judul tugas wajib diisi.' })
     .trim()
@@ -66,7 +71,7 @@ export const createTaskSchema = z.object({
 
 export const updateTaskSchema = z
   .object({
-    mata_kuliah_id: nullablePositiveInt('Mata Kuliah', 999999),
+    kategori: nullableKategoriSchema,
     judul: z.string().trim().min(2).max(200).optional(),
     deskripsi: z.string().trim().max(5000).nullable().optional(),
     prioritas: z.enum(TASK_PRIORITIES).optional(),

@@ -1,9 +1,9 @@
 -- ============================================================================
--- SEEDER: Contoh Data Penjadwalan Tugas Pribadi, Sesi Kerja, Fokus & Pengingat
+-- SEEDER: Contoh Data Penjadwalan Tugas Pribadi Mandiri, Sesi Kerja, Fokus & Pengingat
 -- Universitas Nasional Pasim Bandung
 -- Jalankan setelah database/schema.sql, database/seed.sql,
--- database/migrations/001_peer_materials_library_up.sql, peer_materials_seed.sql,
 -- dan database/migrations/004_focus_planner_timer_up.sql.
+-- Tidak bergantung pada tabel LMS/mata kuliah; semua tugas & kategori dibuat oleh user sendiri.
 -- Semua waktu DATETIME disimpan dalam UTC.
 -- ============================================================================
 
@@ -16,10 +16,6 @@ SET @mhs_id = (
     LIMIT 1
 );
 
-SET @mk_if1101 = (SELECT id FROM mata_kuliah WHERE kode = 'IF1101' LIMIT 1);
-SET @mk_if1201 = (SELECT id FROM mata_kuliah WHERE kode = 'IF1201' LIMIT 1);
-SET @mk_if2102 = (SELECT id FROM mata_kuliah WHERE kode = 'IF2102' LIMIT 1);
-
 -- 1. Pengaturan Fokus default untuk sampel mahasiswa
 INSERT IGNORE INTO fokus_pengaturan (
     user_id, durasi_fokus, durasi_istirahat_pendek, durasi_istirahat_panjang,
@@ -31,11 +27,11 @@ SELECT
     @mhs_id, 25, 5, 15, 4, 0, 1, 1, 240, '08:00', '22:00', 1, '22:00', '07:00', 'Asia/Jakarta'
 WHERE @mhs_id IS NOT NULL;
 
--- 2. Sampel Tugas Pribadi (idempoten via NOT EXISTS)
-INSERT INTO tugas_pribadi (user_id, mata_kuliah_id, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
+-- 2. Sampel Tugas Pribadi Mandiri (idempoten via NOT EXISTS)
+INSERT INTO tugas_pribadi (user_id, kategori, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
 SELECT
     @mhs_id,
-    @mk_if1201,
+    'Proyek Coding',
     'Implementasi Linked List & Stack untuk Studi Kasus Antrean',
     'Buat implementasi struktur data Stack & Queue serta analisis kompleksitas waktunya.',
     'tinggi',
@@ -49,10 +45,10 @@ WHERE @mhs_id IS NOT NULL
     WHERE user_id = @mhs_id AND judul = 'Implementasi Linked List & Stack untuk Studi Kasus Antrean'
   );
 
-INSERT INTO tugas_pribadi (user_id, mata_kuliah_id, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
+INSERT INTO tugas_pribadi (user_id, kategori, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai)
 SELECT
     @mhs_id,
-    @mk_if2102,
+    'Belajar Mandiri',
     'Normalisasi ERD Sistem Perpustakaan Kampus (1NF - 3NF)',
     'Lengkapi diagram relasi entitas dan DDL SQL sampai bentuk normal ketiga.',
     'sedang',
@@ -66,10 +62,10 @@ WHERE @mhs_id IS NOT NULL
     WHERE user_id = @mhs_id AND judul = 'Normalisasi ERD Sistem Perpustakaan Kampus (1NF - 3NF)'
   );
 
-INSERT INTO tugas_pribadi (user_id, mata_kuliah_id, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai, completed_at)
+INSERT INTO tugas_pribadi (user_id, kategori, judul, deskripsi, prioritas, status, deadline_at, estimasi_menit, target_mulai, completed_at)
 SELECT
     @mhs_id,
-    @mk_if1101,
+    'Latihan Soal',
     'Latihan Pseudocode Percabangan & Perulangan',
     'Menyelesaikan 10 soal algoritma dasar dengan flowchart dan pseudocode.',
     'rendah',

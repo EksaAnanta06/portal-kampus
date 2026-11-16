@@ -258,7 +258,7 @@ export default function FocusTimerPage() {
               <MenuItem value="">Tanpa Tugas (Fokus Bebas)</MenuItem>
               {tasks.map((t) => (
                 <MenuItem key={t.id} value={String(t.id)}>
-                  {t.matkul_kode ? `[${t.matkul_kode}] ` : ''}
+                  {t.kategori ? `[${t.kategori}] ` : ''}
                   {t.judul}
                 </MenuItem>
               ))}

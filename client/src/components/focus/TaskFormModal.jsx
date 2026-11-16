@@ -5,6 +5,7 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import Drawer from '@mui/material/Drawer';
 import Button from '@mui/material/Button';
+import Chip from '@mui/material/Chip';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 import IconButton from '@mui/material/IconButton';
@@ -26,13 +27,15 @@ const localInputToIso = (val) => {
   return Number.isNaN(dt.getTime()) ? null : dt.toISOString();
 };
 
-export default function TaskFormModal({ open, onClose, initialTask = null, courses = [], onSaved }) {
+const QUICK_CATEGORIES = ['Belajar Mandiri', 'Tugas Kuliah', 'Proyek / Coding', 'Skripsi', 'Organisasi'];
+
+export default function TaskFormModal({ open, onClose, initialTask = null, onSaved }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const [form, setForm] = useState({
     judul: '',
-    mata_kuliah_id: '',
+    kategori: 'Belajar Mandiri',
     prioritas: 'sedang',
     deadline_local: '',
     estimasi_menit: 60,
@@ -46,7 +49,7 @@ export default function TaskFormModal({ open, onClose, initialTask = null, cours
     if (initialTask) {
       setForm({
         judul: initialTask.judul || '',
-        mata_kuliah_id: initialTask.mata_kuliah_id ? String(initialTask.mata_kuliah_id) : '',
+        kategori: initialTask.kategori || 'Belajar Mandiri',
         prioritas: initialTask.prioritas || 'sedang',
         deadline_local: initialTask.deadline_at ? toDateTimeLocalInput(initialTask.deadline_at) : '',
         estimasi_menit: initialTask.estimasi_menit || '',
@@ -56,7 +59,7 @@ export default function TaskFormModal({ open, onClose, initialTask = null, cours
     } else {
       setForm({
         judul: '',
-        mata_kuliah_id: '',
+        kategori: 'Belajar Mandiri',
         prioritas: 'sedang',
         deadline_local: '',
         estimasi_menit: 60,
@@ -77,7 +80,7 @@ export default function TaskFormModal({ open, onClose, initialTask = null, cours
     try {
       const payload = {
         judul: form.judul.trim(),
-        mata_kuliah_id: form.mata_kuliah_id ? Number(form.mata_kuliah_id) : null,
+        kategori: form.kategori.trim() || 'Belajar Mandiri',
         prioritas: form.prioritas,
         deadline_at: localInputToIso(form.deadline_local),
         estimasi_menit: form.estimasi_menit ? Number(form.estimasi_menit) : null,
@@ -111,19 +114,12 @@ export default function TaskFormModal({ open, onClose, initialTask = null, cours
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <TextField
-          select
-          label="Mata Kuliah (Opsional)"
-          value={form.mata_kuliah_id}
-          onChange={(e) => setForm({ ...form, mata_kuliah_id: e.target.value })}
-          SelectProps={{ displayEmpty: true }}
-        >
-          <MenuItem value="">Umum / Tanpa Mata Kuliah</MenuItem>
-          {courses.map((c) => (
-            <MenuItem key={c.id} value={String(c.id)}>
-              {c.kode ? `${c.kode} — ${c.nama}` : c.nama}
-            </MenuItem>
-          ))}
-        </TextField>
+          label="Kategori / Topik (Bebas)"
+          placeholder="Misal: Belajar Mandiri, Coding, Skripsi"
+          value={form.kategori}
+          onChange={(e) => setForm({ ...form, kategori: e.target.value })}
+          inputProps={{ maxLength: 100 }}
+        />
 
         <TextField
           select
@@ -137,6 +133,20 @@ export default function TaskFormModal({ open, onClose, initialTask = null, cours
             </MenuItem>
           ))}
         </TextField>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {QUICK_CATEGORIES.map((kat) => (
+          <Chip
+            key={kat}
+            size="small"
+            label={kat}
+            variant={form.kategori === kat ? 'filled' : 'outlined'}
+            color={form.kategori === kat ? 'primary' : 'default'}
+            onClick={() => setForm({ ...form, kategori: kat })}
+            className="!text-[11px]"
+          />
+        ))}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

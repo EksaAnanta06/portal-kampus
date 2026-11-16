@@ -7,11 +7,11 @@
 
 USE db_portal_pasim;
 
--- 1. Gunakan ulang tabel tugas_pribadi (buat jika belum ada, lalu pastikan kolom tambahan tersedia)
+-- 1. Tabel Tugas Pribadi Mandiri (100% milik user, tanpa relasi ke tabel LMS/mata kuliah)
 CREATE TABLE IF NOT EXISTS tugas_pribadi (
     id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     user_id INT UNSIGNED NOT NULL,
-    mata_kuliah_id INT UNSIGNED NULL,
+    kategori VARCHAR(100) NULL DEFAULT 'Belajar Mandiri' COMMENT 'Kategori atau topik bebas buatan user sendiri',
     judul VARCHAR(200) NOT NULL,
     deskripsi TEXT NULL,
     prioritas ENUM('rendah', 'sedang', 'tinggi') NOT NULL DEFAULT 'sedang',
@@ -25,12 +25,25 @@ CREATE TABLE IF NOT EXISTS tugas_pribadi (
     CONSTRAINT fk_tp_user
         FOREIGN KEY (user_id) REFERENCES users(id)
         ON DELETE CASCADE,
-    CONSTRAINT fk_tp_matkul
-        FOREIGN KEY (mata_kuliah_id) REFERENCES mata_kuliah(id)
-        ON DELETE SET NULL,
     INDEX idx_tp_user_status_deadline (user_id, status, deadline_at),
     INDEX idx_tp_deadline (status, deadline_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tugas_pribadi' AND COLUMN_NAME = 'kategori') = 0,
+    'ALTER TABLE tugas_pribadi ADD COLUMN kategori VARCHAR(100) NULL DEFAULT ''Belajar Mandiri'' COMMENT ''Kategori atau topik bebas buatan user sendiri'' AFTER user_id',
+    'SELECT "tugas_pribadi.kategori already exists"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
+
+SET @sql = IF(
+    (SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'tugas_pribadi' AND CONSTRAINT_NAME = 'fk_tp_matkul') > 0,
+    'ALTER TABLE tugas_pribadi DROP FOREIGN KEY fk_tp_matkul',
+    'SELECT "fk_tp_matkul not present"'
+);
+PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
 
 SET @sql = IF(
     (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
