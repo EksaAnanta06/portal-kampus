@@ -16,3 +16,5 @@ export const triggerBlobDownload = (blobData, filename) => {
   link.remove();
   setTimeout(() => window.URL.revokeObjectURL(url), 1000);
 };
+
+export { getErrorMessage, getFieldErrors } from './axiosInstance';
