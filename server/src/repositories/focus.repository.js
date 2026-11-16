@@ -1,5 +1,5 @@
 // FILE: server/src/repositories/focus.repository.js
-import { pool } from '../config/db.js';
+import { pool, ensureFocusPlannerSchema } from '../config/db.js';
 import { toUtcMysqlDatetime } from '../utils/timezone.js';
 
 export const DEFAULT_FOCUS_SETTINGS = {
@@ -57,12 +57,14 @@ const normalizeSettingsRow = (row) => {
 // ============================================================================
 
 export const getOrCreateSettings = async (userId, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   await db.query('INSERT IGNORE INTO fokus_pengaturan (user_id) VALUES (?)', [userId]);
   const [rows] = await db.query('SELECT * FROM fokus_pengaturan WHERE user_id = ? LIMIT 1', [userId]);
   return normalizeSettingsRow(rows[0]);
 };
 
 export const updateSettings = async (userId, fields, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   await db.query('INSERT IGNORE INTO fokus_pengaturan (user_id) VALUES (?)', [userId]);
   const allowed = Object.keys(DEFAULT_FOCUS_SETTINGS);
   const keys = Object.keys(fields).filter((k) => allowed.includes(k) && fields[k] !== undefined);
@@ -80,6 +82,7 @@ export const updateSettings = async (userId, fields, db = pool) => {
 // ============================================================================
 
 export const listUserTasks = async (userId, { status } = {}, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   const params = [userId];
   let where = 'WHERE tp.user_id = ?';
   if (status) {
@@ -139,6 +142,7 @@ export const listUserTasks = async (userId, { status } = {}, db = pool) => {
 };
 
 export const getUserTaskById = async (taskId, userId, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   const [rows] = await db.query(
     `SELECT
         tp.id,
@@ -219,6 +223,7 @@ export const deleteUserTask = async (taskId, userId, db = pool) => {
 // ============================================================================
 
 export const listUserSchedules = async (userId, { fromUtc, toUtc, tugasId, status } = {}, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   const clauses = ['sj.user_id = ?'];
   const params = [userId];
 
@@ -320,6 +325,7 @@ export const deleteScheduleSession = async (scheduleId, userId, db = pool) => {
 };
 
 export const getNextScheduledSessionForUser = async (userId, db = pool) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   const [rows] = await db.query(
     `SELECT
         sj.id,
@@ -370,6 +376,7 @@ const FOCUS_SESSION_SELECT = `
 `;
 
 export const getActiveFocusSession = async (userId, db = pool, forUpdate = false) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   const lock = forUpdate ? ' FOR UPDATE' : '';
   const [rows] = await db.query(
     `${FOCUS_SESSION_SELECT} WHERE fs.user_id = ? AND fs.status IN ('berjalan', 'dijeda') LIMIT 1${lock}`,
@@ -455,6 +462,7 @@ export const upsertPushSubscription = async (
   { userId, endpoint, p256dh, auth, userAgent },
   db = pool
 ) => {
+  if (db === pool) await ensureFocusPlannerSchema();
   await db.query(
     `INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent, last_used_at)
      VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())

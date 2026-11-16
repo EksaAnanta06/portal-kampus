@@ -1,5 +1,5 @@
 // FILE: server/src/services/reminder.service.js
-import { pool } from '../config/db.js';
+import { pool, ensureFocusPlannerSchema } from '../config/db.js';
 import { createNotification } from '../queries/campus.queries.js';
 import { sendMailOrLog } from '../config/mailer.js';
 import { sendWebPushNotification } from '../utils/webPushClient.js';
@@ -267,6 +267,13 @@ const composeReminderCopy = (row) => {
  * Dirancang aman untuk concurrency (FOR UPDATE SKIP LOCKED + dedupe_key UNIQUE).
  */
 export const processDueRemindersAndMissedSessions = async (nowUtcMs = Date.now()) => {
+  try {
+    await ensureFocusPlannerSchema();
+  } catch (err) {
+    console.warn('⚠️ [CRON] Skema fokus belum siap:', err.message);
+    return { processed: 0 };
+  }
+
   const nowSqlUtc = toUtcMysqlDatetime(nowUtcMs);
 
   // 1. Deteksi sesi terjadwal yang sudah melewati waktu selesai -> ubah status ke 'terlewat'

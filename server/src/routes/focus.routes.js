@@ -1,7 +1,9 @@
 // FILE: server/src/routes/focus.routes.js
 import { Router } from 'express';
+import { ensureFocusPlannerSchema } from '../config/db.js';
 import { authenticate } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import {
   focusTimerLimiter,
@@ -62,6 +64,12 @@ const router = Router();
 // Seluruh endpoint modul Penjadwalan, Timer Fokus, & Pengingat mengikuti hak akses Assignment Hub:
 // hanya user terverifikasi (authenticate) dengan role mahasiswa/moderator/admin; alumni diblokir (403).
 router.use(authenticate, authorizeRoles(...ASSIGNMENT_HUB_ROLES));
+router.use(
+  asyncHandler(async (_req, _res, next) => {
+    await ensureFocusPlannerSchema();
+    next();
+  })
+);
 
 // 1. Tugas Pribadi (reusing tugas_pribadi)
 router.get('/tasks', validate(tasksQuerySchema, 'query'), listTasks);

@@ -360,6 +360,18 @@ import { errorHandler } from '../src/middlewares/error.middleware.js';
     return [[]];
   };
   pool.query = async (sql, params = []) => {
+    if (sql.includes('INFORMATION_SCHEMA.TABLE_CONSTRAINTS')) {
+      return [[]];
+    }
+    if (sql.includes("TABLE_NAME = 'tugas_pribadi'") && sql.includes('INFORMATION_SCHEMA.COLUMNS')) {
+      return [[{ COLUMN_NAME: 'kategori' }, { COLUMN_NAME: 'estimasi_menit' }, { COLUMN_NAME: 'target_mulai' }]];
+    }
+    if (sql.includes("TABLE_NAME = 'notifications'") && sql.includes('INFORMATION_SCHEMA.COLUMNS')) {
+      return [[{ COLUMN_TYPE: "enum('focus_reminder','task_deadline','system')" }]];
+    }
+    if (sql.includes('SELECT COUNT(*) AS cnt FROM tugas_pribadi')) {
+      return [[{ cnt: 1 }]];
+    }
     // Ownership test: tugas id 999 dimiliki user_id 21, sehingga query WHERE tp.id = 999 AND tp.user_id = 20 mengembalikan kosong
     if (sql.includes('FROM tugas_pribadi tp') && sql.includes('tp.id = ? AND tp.user_id = ?')) {
       return [[]];
