@@ -17,7 +17,8 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const ForgotResetPasswordPage = lazy(() => import('./pages/auth/ForgotResetPasswordPage'));
-const AngkatanListPage = lazy(() => import('./pages/gallery/AngkatanListPage'));
+const loadAngkatanListPage = () => import('./pages/gallery/AngkatanListPage');
+const AngkatanListPage = lazy(loadAngkatanListPage);
 const AngkatanDetailPage = lazy(() => import('./pages/gallery/AngkatanDetailPage'));
 const AnnouncementsPage = lazy(() => import('./pages/campus/AnnouncementsPage'));
 const EventsPage = lazy(() => import('./pages/campus/EventsPage'));
@@ -29,11 +30,14 @@ const ManageGalleryPage = lazy(() => import('./pages/admin/ManageGalleryPage'));
 const UserVerificationPage = lazy(() => import('./pages/admin/UserVerificationPage'));
 const ManageCampusInfoPage = lazy(() => import('./pages/admin/ManageCampusInfoPage'));
 const ManageMaterialsPage = lazy(() => import('./pages/admin/ManageMaterialsPage'));
-const MaterialsLibraryPage = lazy(() => import('./pages/academic/MaterialsLibraryPage'));
+const loadMaterialsLibraryPage = () => import('./pages/academic/MaterialsLibraryPage');
+const MaterialsLibraryPage = lazy(loadMaterialsLibraryPage);
 const CourseMaterialsPage = lazy(() => import('./pages/academic/CourseMaterialsPage'));
 const MaterialDetailPage = lazy(() => import('./pages/academic/MaterialDetailPage'));
-const FocusTimerPage = lazy(() => import('./pages/focus/FocusTimerPage'));
-const StudyPlannerPage = lazy(() => import('./pages/focus/StudyPlannerPage'));
+const loadFocusTimerPage = () => import('./pages/focus/FocusTimerPage');
+const FocusTimerPage = lazy(loadFocusTimerPage);
+const loadStudyPlannerPage = () => import('./pages/focus/StudyPlannerPage');
+const StudyPlannerPage = lazy(loadStudyPlannerPage);
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export function PageLoader() {
@@ -56,10 +60,27 @@ export default function App() {
   const initAuth = useAuthStore((s) => s.initAuth);
   const location = useLocation();
 
-  // Pulihkan sesi dari cookie refresh token saat aplikasi dibuka
+  // Pulihkan sesi dari cookie refresh token saat aplikasi dibuka & preload rute utama saat idle
   useEffect(() => {
     initAuth();
     registerPortalServiceWorker().catch(() => {});
+
+    const preloadRoutes = () => {
+      Promise.allSettled([
+        loadMaterialsLibraryPage(),
+        loadStudyPlannerPage(),
+        loadFocusTimerPage(),
+        loadAngkatanListPage(),
+      ]);
+    };
+
+    if (typeof window !== 'undefined' && typeof window.requestIdleCallback === 'function') {
+      const idleId = window.requestIdleCallback(preloadRoutes, { timeout: 2500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timerId = window.setTimeout(preloadRoutes, 1200);
+    return () => window.clearTimeout(timerId);
   }, [initAuth]);
 
   return (

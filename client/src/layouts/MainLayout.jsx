@@ -1,5 +1,5 @@
 // FILE: client/src/layouts/MainLayout.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -9,6 +9,7 @@ import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import Tooltip from '@mui/material/Tooltip';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
@@ -40,10 +41,12 @@ import useThemeStore, { toast } from '../store/useThemeStore';
 import { getOptimizedImageUrl } from '../hooks/useCloudinaryUrl';
 import { ASSIGNMENT_HUB_ROLES, ROLE_LABELS, getInitials } from '../utils/constants';
 
-const navLinkClass = ({ isActive }) =>
+const navLinkClass = (accent = 'pasim') => ({ isActive }) =>
   `flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 ${
     isActive
-      ? 'bg-pasim text-white shadow-md shadow-pasim/25 font-bold'
+      ? accent === 'emerald'
+        ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 font-bold'
+        : 'bg-pasim text-white shadow-md shadow-pasim/25 font-bold'
       : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800/80 dark:hover:text-white'
   }`;
 
@@ -93,13 +96,13 @@ export default function MainLayout() {
     ...(isLoggedIn
       ? [
           { to: '/direktori', label: 'Direktori Mahasiswa & Alumni', icon: <GroupsRoundedIcon fontSize="small" /> },
-          { to: '/akademik/materi', label: 'Materi Perpustakaan', icon: <MenuBookRoundedIcon fontSize="small" /> },
+          { to: '/akademik/materi', label: 'Materi Perpustakaan', icon: <MenuBookRoundedIcon fontSize="small" />, accent: 'emerald' },
         ]
       : []),
     ...(canAccessFocusPlanner
       ? [
-          { to: '/rencana', label: 'Rencana & Tugas', icon: <TaskAltRoundedIcon fontSize="small" /> },
-          { to: '/fokus', label: 'Timer Fokus', icon: <TimerRoundedIcon fontSize="small" /> },
+          { to: '/rencana', label: 'Rencana & Tugas', icon: <TaskAltRoundedIcon fontSize="small" />, accent: 'emerald' },
+          { to: '/fokus', label: 'Timer Fokus', icon: <TimerRoundedIcon fontSize="small" />, accent: 'emerald' },
         ]
       : []),
   ];
@@ -108,14 +111,19 @@ export default function MainLayout() {
     <div className="flex h-full flex-col p-4 bg-white dark:bg-navy-800">
       {/* Brand Header & Tombol Tutup X yang Responsif */}
       <div className="flex items-center justify-between gap-2 px-2 py-3">
-        <div className="min-w-0 flex-1 truncate" onClick={onClose}>
+        <div className="min-w-0 flex-1 truncate">
           <BrandLogo />
         </div>
         {onClose && (
           <IconButton
-            onClick={onClose}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             aria-label="Tutup Menu"
-            className="shrink-0 !text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white hover:!bg-slate-100 dark:hover:!bg-slate-800 !p-2"
+            className="shrink-0 !min-h-[44px] !min-w-[44px] !text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white hover:!bg-slate-100 dark:hover:!bg-slate-800 !p-2"
             size="medium"
           >
             <CloseRoundedIcon sx={{ fontSize: 24 }} />
@@ -189,7 +197,11 @@ export default function MainLayout() {
             key={item.to}
             to={item.to}
             end={item.end}
-            className={navLinkClass}
+            className={({ isActive }) =>
+              navLinkClass(item.accent)({
+                isActive: isActive || (item.to === '/rencana' && location.pathname === '/tugas'),
+              })
+            }
             onClick={onClose}
           >
             {item.icon}
@@ -257,21 +269,23 @@ export default function MainLayout() {
       </aside>
 
       {/* 2. DRAWER MOBILE */}
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-        disableScrollLock
-        transitionDuration={{ enter: 225, exit: 150 }}
-        ModalProps={{ keepMounted: false }}
-        BackdropProps={{
-          transitionDuration: { enter: 200, exit: 0 },
-          className: '!bg-black/35 backdrop-blur-[1px]',
-        }}
-        PaperProps={{ className: 'w-72 max-w-[85vw] bg-white dark:bg-navy-800 shadow-2xl' }}
-      >
-        {renderSidebar(() => setMobileOpen(false))}
-      </Drawer>
+      {mobileOpen && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          disableScrollLock
+          transitionDuration={{ enter: 180, exit: 0 }}
+          ModalProps={{ keepMounted: false, closeAfterTransition: false }}
+          BackdropProps={{
+            transitionDuration: { enter: 180, exit: 0 },
+            className: '!bg-black/35 backdrop-blur-[1px]',
+          }}
+          PaperProps={{ className: 'w-72 max-w-[85vw] bg-white dark:bg-navy-800 shadow-2xl' }}
+        >
+          {renderSidebar(() => setMobileOpen(false))}
+        </Drawer>
+      )}
 
       {/* 3. MAIN DASHBOARD CONTENT AREA */}
       <div className="flex flex-1 flex-col min-w-0">
@@ -423,7 +437,15 @@ export default function MainLayout() {
         {/* Dashboard Main View */}
         <main className="flex-1 p-3 sm:p-6 lg:p-8 pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-16 w-full max-w-full overflow-x-hidden">
           <div className="mx-auto max-w-7xl w-full min-w-0">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex min-h-[50vh] w-full items-center justify-center">
+                  <CircularProgress color="success" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
 
@@ -465,7 +487,7 @@ export default function MainLayout() {
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                     isActive
-                      ? 'text-pasim dark:text-pasim-300'
+                      ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }
@@ -512,8 +534,8 @@ export default function MainLayout() {
                 to="/rencana"
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
-                    isActive
-                      ? 'text-pasim dark:text-pasim-300'
+                    isActive || location.pathname === '/tugas'
+                      ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }
@@ -529,7 +551,7 @@ export default function MainLayout() {
                 className={({ isActive }) =>
                   `flex flex-col items-center justify-center gap-0.5 min-h-[44px] min-w-[44px] text-[10px] font-bold py-1 px-1.5 sm:px-2 rounded-lg transition ${
                     isActive
-                      ? 'text-pasim dark:text-pasim-300'
+                      ? 'text-emerald-600 dark:text-emerald-400'
                       : 'text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`
                 }

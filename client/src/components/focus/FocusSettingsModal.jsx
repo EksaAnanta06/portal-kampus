@@ -172,6 +172,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.auto_start)}
                 onChange={(e) => setForm({ ...form, auto_start: e.target.checked })}
               />
@@ -181,6 +182,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.suara_aktif)}
                 onChange={(e) => setForm({ ...form, suara_aktif: e.target.checked })}
               />
@@ -190,6 +192,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.getar_aktif)}
                 onChange={(e) => setForm({ ...form, getar_aktif: e.target.checked })}
               />
@@ -255,6 +258,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
             control={
               <Switch
                 size="small"
+                color="success"
                 checked={Boolean(form.jam_tenang_aktif)}
                 onChange={(e) => setForm({ ...form, jam_tenang_aktif: e.target.checked })}
               />
@@ -296,6 +300,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_sesi_akan_mulai)}
                 onChange={(e) => setForm({ ...form, ingatkan_sesi_akan_mulai: e.target.checked })}
               />
@@ -305,6 +310,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_sesi_mulai)}
                 onChange={(e) => setForm({ ...form, ingatkan_sesi_mulai: e.target.checked })}
               />
@@ -314,6 +320,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_sesi_terlewat)}
                 onChange={(e) => setForm({ ...form, ingatkan_sesi_terlewat: e.target.checked })}
               />
@@ -323,6 +330,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_deadline_h3)}
                 onChange={(e) => setForm({ ...form, ingatkan_deadline_h3: e.target.checked })}
               />
@@ -332,6 +340,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_deadline_h1)}
                 onChange={(e) => setForm({ ...form, ingatkan_deadline_h1: e.target.checked })}
               />
@@ -341,6 +350,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.ingatkan_deadline_3jam)}
                 onChange={(e) => setForm({ ...form, ingatkan_deadline_3jam: e.target.checked })}
               />
@@ -350,6 +360,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <FormControlLabel
             control={
               <Switch
+                color="success"
                 checked={Boolean(form.email_pengingat_aktif)}
                 onChange={(e) => setForm({ ...form, email_pengingat_aktif: e.target.checked })}
               />
@@ -366,7 +377,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
-              <NotificationsActiveRoundedIcon fontSize="small" className="text-pasim dark:text-pasim-300" />
+              <NotificationsActiveRoundedIcon fontSize="small" className="text-emerald-600 dark:text-emerald-400" />
               <span>Notifikasi Push Browser (PWA)</span>
             </div>
             <p className="m-0 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
@@ -376,7 +387,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
           <Button
             type="button"
             variant={pushSubscribed ? 'outlined' : 'contained'}
-            color={pushSubscribed ? 'error' : 'primary'}
+            color={pushSubscribed ? 'error' : 'success'}
             size="small"
             disabled={pushLoading || !isWebPushSupported()}
             onClick={handleTogglePush}
@@ -402,7 +413,7 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
         <Button type="button" color="inherit" onClick={onClose} disabled={saving} className="!min-h-[44px]">
           Batal
         </Button>
-        <Button type="submit" variant="contained" disabled={saving} className="!min-h-[44px]">
+        <Button type="submit" variant="contained" color="success" disabled={saving} className="!min-h-[44px]">
           {saving ? 'Menyimpan...' : 'Simpan Pengaturan'}
         </Button>
       </div>
@@ -415,6 +426,8 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
         anchor="bottom"
         open={open}
         onClose={onClose}
+        transitionDuration={{ enter: 180, exit: 0 }}
+        ModalProps={{ keepMounted: false, closeAfterTransition: false }}
         PaperProps={{
           className:
             'max-h-[90dvh] rounded-t-3xl p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-white dark:bg-navy-800',

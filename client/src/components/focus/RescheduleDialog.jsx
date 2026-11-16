@@ -153,7 +153,13 @@ export default function RescheduleDialog({ open, onClose, session, onRescheduled
         <Button type="button" color="inherit" onClick={onClose} disabled={saving} className="!min-h-[44px]">
           Batal
         </Button>
-        <Button type="submit" variant="contained" disabled={saving} className="!min-h-[44px]">
+        <Button
+          type="submit"
+          variant="contained"
+          color="success"
+          disabled={saving}
+          className="!min-h-[44px]"
+        >
           Simpan Jadwal Baru
         </Button>
       </div>
@@ -166,6 +172,8 @@ export default function RescheduleDialog({ open, onClose, session, onRescheduled
         anchor="bottom"
         open={open}
         onClose={onClose}
+        transitionDuration={{ enter: 180, exit: 0 }}
+        ModalProps={{ keepMounted: false, closeAfterTransition: false }}
         PaperProps={{
           className:
             'rounded-t-3xl p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-white dark:bg-navy-800',

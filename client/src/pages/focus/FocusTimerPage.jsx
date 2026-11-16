@@ -51,18 +51,32 @@ export default function FocusTimerPage() {
 
   const [selectedMode, setSelectedMode] = useState('fokus');
   const [selectedTaskId, setSelectedTaskId] = useState(queryTaskId);
+  const [selectedScheduleId, setSelectedScheduleId] = useState(queryScheduleId);
   const [tasks, setTasks] = useState([]);
+  const [scheduledSessions, setScheduledSessions] = useState([]);
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
-    focusApi
-      .getTasks()
-      .then((res) => {
+    Promise.all([focusApi.getTasks(), focusApi.getSchedules()])
+      .then(([tasksRes, schedRes]) => {
         if (!active) return;
-        setTasks((res.data || []).filter((t) => t.status !== 'selesai'));
+        const activeTasks = (tasksRes.data || []).filter((t) => t.status !== 'selesai');
+        const activeScheds = (schedRes.data?.schedules || []).filter(
+          (s) => s.status === 'terjadwal'
+        );
+        setTasks(activeTasks);
+        setScheduledSessions(activeScheds);
+        if (queryScheduleId) {
+          const matchedSched = activeScheds.find(
+            (s) => String(s.id) === String(queryScheduleId)
+          );
+          if (matchedSched?.tugas_id) {
+            setSelectedTaskId(String(matchedSched.tugas_id));
+          }
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -71,11 +85,15 @@ export default function FocusTimerPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [queryScheduleId]);
 
   useEffect(() => {
     if (queryTaskId) setSelectedTaskId(queryTaskId);
   }, [queryTaskId]);
+
+  useEffect(() => {
+    if (queryScheduleId) setSelectedScheduleId(queryScheduleId);
+  }, [queryScheduleId]);
 
   const currentMode = activeSession?.tipe || selectedMode;
   const isBreak = currentMode !== 'fokus';
@@ -100,17 +118,40 @@ export default function FocusTimerPage() {
 
   const selectedTaskLabel = useMemo(() => {
     if (activeSession?.judul_tugas) return activeSession.judul_tugas;
+    if (selectedScheduleId) {
+      const sched = scheduledSessions.find((s) => String(s.id) === String(selectedScheduleId));
+      if (sched?.judul_tugas) return sched.judul_tugas;
+    }
     if (!selectedTaskId) return 'Fokus Bebas (Tanpa Tugas)';
     const found = tasks.find((t) => String(t.id) === String(selectedTaskId));
     return found ? found.judul : 'Tugas Dipilih';
-  }, [activeSession, selectedTaskId, tasks]);
+  }, [activeSession, selectedScheduleId, scheduledSessions, selectedTaskId, tasks]);
+
+  const handleSelectSchedule = (schedId) => {
+    setSelectedScheduleId(schedId);
+    if (!schedId) return;
+    const matched = scheduledSessions.find((s) => String(s.id) === String(schedId));
+    if (matched?.tugas_id) {
+      setSelectedTaskId(String(matched.tugas_id));
+    }
+  };
+
+  const handleSelectTask = (taskId) => {
+    setSelectedTaskId(taskId);
+    if (selectedScheduleId) {
+      const matched = scheduledSessions.find((s) => String(s.id) === String(selectedScheduleId));
+      if (!matched || String(matched.tugas_id) !== String(taskId)) {
+        setSelectedScheduleId('');
+      }
+    }
+  };
 
   const handlePrimaryAction = async () => {
     if (!activeSession) {
       await startSession({
         tipe: selectedMode,
         tugas_id: selectedTaskId ? Number(selectedTaskId) : null,
-        sesi_jadwal_id: queryScheduleId && !selectedTaskId ? Number(queryScheduleId) : queryScheduleId ? Number(queryScheduleId) : null,
+        sesi_jadwal_id: selectedScheduleId ? Number(selectedScheduleId) : null,
         siklus_ke: displayedCycle,
       });
       return;
@@ -132,7 +173,9 @@ export default function FocusTimerPage() {
     );
   }
 
-  const ringStrokeClass = isBreak ? 'stroke-emerald-600 dark:stroke-emerald-400' : 'stroke-pasim dark:stroke-pasim-300';
+  const ringStrokeClass = isBreak
+    ? 'stroke-teal-500 dark:stroke-teal-400'
+    : 'stroke-emerald-600 dark:stroke-emerald-400';
 
   return (
     <div className="mx-auto flex min-h-[calc(100dvh-10rem)] w-full max-w-xl flex-col justify-between py-2 sm:py-4">
@@ -185,7 +228,7 @@ export default function FocusTimerPage() {
                 onClick={() => setSelectedMode(m.value)}
                 className={`min-h-[40px] rounded-xl px-3.5 py-1.5 text-xs sm:text-sm font-bold transition ${
                   active
-                    ? 'bg-white text-slate-900 shadow-sm dark:bg-navy-800 dark:text-white'
+                    ? 'bg-emerald-600 text-white shadow-sm'
                     : 'text-slate-500 hover:text-slate-800 disabled:opacity-50 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
@@ -196,7 +239,7 @@ export default function FocusTimerPage() {
         </div>
 
         {/* Lingkaran Progres & Angka Besar */}
-        <div className="relative my-7 flex h-60 w-60 sm:h-64 sm:w-64 items-center justify-center">
+        <div className="relative my-6 sm:my-7 flex h-52 w-52 sm:h-64 sm:w-64 items-center justify-center">
           <svg
             viewBox="0 0 256 256"
             className="h-full w-full -rotate-90"
@@ -223,46 +266,64 @@ export default function FocusTimerPage() {
             />
           </svg>
 
-          <div className="absolute inset-0 flex flex-col items-center justify-center px-6">
+          <div className="absolute inset-0 flex flex-col items-center justify-center px-4">
             <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">
               {TIMER_MODE_LABELS[currentMode] || 'Fokus'}
               {activeSession?.status === 'dijeda' ? ' · Dijeda' : ''}
             </span>
             <div
-              className="mt-1 text-5xl sm:text-6xl font-black tracking-tight text-slate-900 dark:text-white"
+              className="mt-1 text-4xl sm:text-6xl font-black tracking-tight text-slate-900 dark:text-white"
               style={{ fontVariantNumeric: 'tabular-nums' }}
               aria-label={`Sisa waktu ${displayedClock}`}
             >
               {displayedClock}
             </div>
-            <span className="mt-2 rounded-full bg-slate-100 px-3 py-0.5 text-[11px] font-bold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            <span className="mt-2 rounded-full bg-emerald-50 px-3 py-0.5 text-[11px] font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
               Siklus ke-{displayedCycle} / {totalCycleGoal}
             </span>
           </div>
         </div>
 
-        {/* Tugas yang Dikerjakan */}
-        <div className="w-full max-w-sm space-y-2">
+        {/* Tugas & Sesi Terjadwal yang Dikerjakan */}
+        <div className="w-full max-w-sm space-y-2.5">
           {activeSession ? (
-            <div className="rounded-xl bg-slate-50 px-4 py-2.5 text-sm font-semibold text-slate-800 dark:bg-navy dark:text-slate-200 truncate">
+            <div className="rounded-xl bg-emerald-50/70 px-4 py-2.5 text-sm font-semibold text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200 truncate">
               {selectedTaskLabel}
             </div>
           ) : (
-            <TextField
-              select
-              label="Tugas yang Dikerjakan"
-              value={selectedTaskId}
-              onChange={(e) => setSelectedTaskId(e.target.value)}
-              SelectProps={{ displayEmpty: true }}
-            >
-              <MenuItem value="">Tanpa Tugas (Fokus Bebas)</MenuItem>
-              {tasks.map((t) => (
-                <MenuItem key={t.id} value={String(t.id)}>
-                  {t.kategori ? `[${t.kategori}] ` : ''}
-                  {t.judul}
-                </MenuItem>
-              ))}
-            </TextField>
+            <>
+              {scheduledSessions.length > 0 && (
+                <TextField
+                  select
+                  label="Mulai dari Sesi Terjadwal (Opsional)"
+                  value={selectedScheduleId}
+                  onChange={(e) => handleSelectSchedule(e.target.value)}
+                  SelectProps={{ displayEmpty: true }}
+                >
+                  <MenuItem value="">Pilih manual dari daftar tugas</MenuItem>
+                  {scheduledSessions.map((s) => (
+                    <MenuItem key={s.id} value={String(s.id)}>
+                      {s.judul_tugas} ({s.durasi_menit} mnt)
+                    </MenuItem>
+                  ))}
+                </TextField>
+              )}
+              <TextField
+                select
+                label="Tugas yang Dikerjakan"
+                value={selectedTaskId}
+                onChange={(e) => handleSelectTask(e.target.value)}
+                SelectProps={{ displayEmpty: true }}
+              >
+                <MenuItem value="">Tanpa Tugas (Fokus Bebas)</MenuItem>
+                {tasks.map((t) => (
+                  <MenuItem key={t.id} value={String(t.id)}>
+                    {t.kategori ? `[${t.kategori}] ` : ''}
+                    {t.judul}
+                  </MenuItem>
+                ))}
+              </TextField>
+            </>
           )}
         </div>
 
@@ -270,14 +331,14 @@ export default function FocusTimerPage() {
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3 w-full">
           <Button
             variant="contained"
-            color={isBreak ? 'success' : 'primary'}
+            color="success"
             size="large"
             disabled={actionLoading}
             onClick={handlePrimaryAction}
             startIcon={
               activeSession?.status === 'berjalan' ? <PauseRoundedIcon /> : <PlayArrowRoundedIcon />
             }
-            className="!min-h-[48px] !min-w-[168px] !rounded-2xl !text-base"
+            className="!min-h-[48px] w-full sm:w-auto sm:!min-w-[168px] !rounded-2xl !text-base"
           >
             {!activeSession
               ? 'Mulai'

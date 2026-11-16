@@ -1,5 +1,5 @@
 // FILE: client/src/layouts/AdminLayout.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { NavLink, Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
@@ -9,6 +9,7 @@ import Avatar from '@mui/material/Avatar';
 import Divider from '@mui/material/Divider';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
+import CircularProgress from '@mui/material/CircularProgress';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DashboardRoundedIcon from '@mui/icons-material/DashboardRounded';
@@ -74,9 +75,14 @@ export default function AdminLayout() {
         </div>
         {onClose && (
           <IconButton
-            onClick={onClose}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
             aria-label="Tutup Menu"
-            className="shrink-0 !text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white hover:!bg-slate-100 dark:hover:!bg-slate-800 !p-2"
+            className="shrink-0 !min-h-[44px] !min-w-[44px] !text-slate-600 hover:!text-slate-900 dark:!text-slate-300 dark:hover:!text-white hover:!bg-slate-100 dark:hover:!bg-slate-800 !p-2"
             size="medium"
           >
             <CloseRoundedIcon sx={{ fontSize: 24 }} />
@@ -132,21 +138,23 @@ export default function AdminLayout() {
       </aside>
 
       {/* Drawer mobile */}
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={() => setMobileOpen(false)}
-        disableScrollLock
-        transitionDuration={{ enter: 225, exit: 150 }}
-        ModalProps={{ keepMounted: false }}
-        BackdropProps={{
-          transitionDuration: { enter: 200, exit: 0 },
-          className: '!bg-black/35 backdrop-blur-[1px]',
-        }}
-        PaperProps={{ className: 'w-72 max-w-[85vw] bg-white dark:bg-navy-800 shadow-2xl' }}
-      >
-        {renderSidebar(() => setMobileOpen(false))}
-      </Drawer>
+      {mobileOpen && (
+        <Drawer
+          variant="temporary"
+          open={mobileOpen}
+          onClose={() => setMobileOpen(false)}
+          disableScrollLock
+          transitionDuration={{ enter: 180, exit: 0 }}
+          ModalProps={{ keepMounted: false, closeAfterTransition: false }}
+          BackdropProps={{
+            transitionDuration: { enter: 180, exit: 0 },
+            className: '!bg-black/35 backdrop-blur-[1px]',
+          }}
+          PaperProps={{ className: 'w-72 max-w-[85vw] bg-white dark:bg-navy-800 shadow-2xl' }}
+        >
+          {renderSidebar(() => setMobileOpen(false))}
+        </Drawer>
+      )}
 
       <div className="flex flex-1 flex-col min-w-0">
         <AppBar position="sticky" color="inherit" elevation={0} className="!border-b !border-slate-200 !bg-white/95 backdrop-blur-md dark:!border-slate-800 dark:!bg-navy-800/95">
@@ -165,7 +173,15 @@ export default function AdminLayout() {
 
         <main className="flex-1 p-3.5 sm:p-6 lg:p-8">
           <div className="mx-auto max-w-7xl">
-            <Outlet />
+            <Suspense
+              fallback={
+                <div className="flex min-h-[50vh] w-full items-center justify-center">
+                  <CircularProgress color="primary" />
+                </div>
+              }
+            >
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>

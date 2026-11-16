@@ -142,7 +142,7 @@ export default function TaskFormModal({ open, onClose, initialTask = null, onSav
             size="small"
             label={kat}
             variant={form.kategori === kat ? 'filled' : 'outlined'}
-            color={form.kategori === kat ? 'primary' : 'default'}
+            color={form.kategori === kat ? 'success' : 'default'}
             onClick={() => setForm({ ...form, kategori: kat })}
             className="!text-[11px]"
           />
@@ -187,7 +187,7 @@ export default function TaskFormModal({ open, onClose, initialTask = null, onSav
         <Button type="button" color="inherit" onClick={onClose} disabled={saving} className="!min-h-[44px]">
           Batal
         </Button>
-        <Button type="submit" variant="contained" disabled={saving} className="!min-h-[44px]">
+        <Button type="submit" variant="contained" color="success" disabled={saving} className="!min-h-[44px]">
           {saving ? 'Menyimpan...' : initialTask ? 'Simpan Perubahan' : 'Simpan Tugas'}
         </Button>
       </div>
@@ -200,6 +200,8 @@ export default function TaskFormModal({ open, onClose, initialTask = null, onSav
         anchor="bottom"
         open={open}
         onClose={onClose}
+        transitionDuration={{ enter: 180, exit: 0 }}
+        ModalProps={{ keepMounted: false, closeAfterTransition: false }}
         PaperProps={{
           className:
             'max-h-[90dvh] rounded-t-3xl p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-white dark:bg-navy-800',

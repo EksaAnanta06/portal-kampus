@@ -251,9 +251,9 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
       </div>
 
       {/* Kotak Rencanakan Otomatis */}
-      <div className="rounded-2xl border border-pasim-200/70 bg-pasim-50/50 p-3.5 space-y-3 dark:border-pasim-800/60 dark:bg-pasim-950/20">
+      <div className="rounded-2xl border border-emerald-200/70 bg-emerald-50/60 p-3.5 space-y-3 dark:border-emerald-800/60 dark:bg-emerald-950/20">
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs font-bold text-pasim dark:text-pasim-300">
+          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
             Rencanakan Otomatis (Berdasarkan Jam Aktif & Slot Kosong)
           </span>
         </div>
@@ -281,11 +281,11 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
           <Button
             type="button"
             variant="outlined"
-            color="primary"
+            color="success"
             startIcon={<AutoAwesomeRoundedIcon />}
             onClick={handleAutoPlan}
             disabled={planning}
-            className="!min-h-[40px]"
+            className="!min-h-[44px]"
           >
             {planning ? 'Menghitung...' : 'Buat Saran Sesi'}
           </Button>
@@ -307,6 +307,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
           <Button
             type="button"
             size="small"
+            color="success"
             startIcon={<AddRoundedIcon />}
             onClick={handleAddRow}
             className="!min-h-[36px]"
@@ -315,13 +316,13 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
           </Button>
         </div>
 
-        <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
+        <div className="space-y-2.5 max-h-[240px] overflow-y-auto pr-1">
           {rows.map((row, idx) => (
             <div
               key={row.key}
-              className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200 p-2 dark:border-slate-700"
+              className="grid grid-cols-12 items-center gap-2 rounded-xl border border-slate-200 p-2.5 dark:border-slate-700"
             >
-              <div className="col-span-5 sm:col-span-5">
+              <div className="col-span-12 sm:col-span-5">
                 <TextField
                   type="date"
                   label={`Tanggal #${idx + 1}`}
@@ -330,7 +331,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
                   InputLabelProps={{ shrink: true }}
                 />
               </div>
-              <div className="col-span-3 sm:col-span-3">
+              <div className="col-span-5 sm:col-span-3">
                 <TextField
                   type="time"
                   label="Mulai"
@@ -339,7 +340,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
                   InputLabelProps={{ shrink: true }}
                 />
               </div>
-              <div className="col-span-3 sm:col-span-3">
+              <div className="col-span-5 sm:col-span-3">
                 <TextField
                   type="number"
                   label="Menit"
@@ -348,7 +349,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
                   onChange={(e) => handleUpdateRow(row.key, 'durasi_menit', e.target.value)}
                 />
               </div>
-              <div className="col-span-1 flex justify-center">
+              <div className="col-span-2 sm:col-span-1 flex justify-end sm:justify-center">
                 <IconButton
                   type="button"
                   size="small"
@@ -356,7 +357,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
                   onClick={() => handleRemoveRow(row.key)}
                   aria-label="Hapus baris sesi"
                   disabled={rows.length === 1}
-                  className="!min-h-[40px] !min-w-[40px]"
+                  className="!min-h-[44px] !min-w-[44px]"
                 >
                   <DeleteOutlineRoundedIcon fontSize="small" />
                 </IconButton>
@@ -373,6 +374,7 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
         <Button
           type="submit"
           variant="contained"
+          color="success"
           startIcon={<EventAvailableRoundedIcon />}
           disabled={saving}
           className="!min-h-[44px]"
@@ -389,6 +391,8 @@ export default function ScheduleTaskSheet({ open, onClose, task, onScheduled }) 
         anchor="bottom"
         open={open}
         onClose={onClose}
+        transitionDuration={{ enter: 180, exit: 0 }}
+        ModalProps={{ keepMounted: false, closeAfterTransition: false }}
         PaperProps={{
           className:
             'max-h-[92dvh] rounded-t-3xl p-4 sm:p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-white dark:bg-navy-800',

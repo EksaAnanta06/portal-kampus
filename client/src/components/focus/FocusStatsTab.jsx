@@ -60,7 +60,7 @@ export default function FocusStatsTab({ stats, loading }) {
               {formatDurationLabel(stats.hari_ini_menit)}
             </div>
           </div>
-          <TimerRoundedIcon className="text-pasim dark:text-pasim-300 shrink-0" />
+          <TimerRoundedIcon className="text-emerald-600 dark:text-emerald-400 shrink-0" />
         </div>
 
         <div className="card-surface p-4 flex items-center justify-between gap-2">
@@ -72,7 +72,7 @@ export default function FocusStatsTab({ stats, loading }) {
               {formatDurationLabel(stats.tujuh_hari_menit)}
             </div>
           </div>
-          <DateRangeRoundedIcon className="text-sky-600 dark:text-sky-400 shrink-0" />
+          <DateRangeRoundedIcon className="text-teal-600 dark:text-teal-400 shrink-0" />
         </div>
 
         <div className="card-surface p-4 flex items-center justify-between gap-2">
@@ -120,7 +120,7 @@ export default function FocusStatsTab({ stats, loading }) {
                 <div className="w-full max-w-[36px] flex-1 flex items-end rounded-lg bg-slate-100 dark:bg-navy overflow-hidden">
                   <div
                     className={`w-full rounded-t-lg transition-all ${
-                      day.total_menit > 0 ? 'bg-pasim dark:bg-pasim-400' : 'bg-transparent'
+                      day.total_menit > 0 ? 'bg-emerald-600 dark:bg-emerald-400' : 'bg-transparent'
                     }`}
                     style={{ height: day.total_menit > 0 ? `${pct}%` : '0%' }}
                     title={`${day.date_key}: ${day.total_menit} menit (${day.jumlah_sesi} sesi)`}
@@ -153,7 +153,7 @@ export default function FocusStatsTab({ stats, loading }) {
                     </div>
                     <div className="text-[11px] text-slate-400">{c.jumlah_sesi} sesi selesai</div>
                   </div>
-                  <span className="text-xs font-extrabold text-pasim dark:text-pasim-300 shrink-0">
+                  <span className="text-xs font-extrabold text-emerald-700 dark:text-emerald-300 shrink-0">
                     {formatDurationLabel(c.total_menit)}
                   </span>
                 </div>
@@ -191,7 +191,7 @@ export default function FocusStatsTab({ stats, loading }) {
                     <LinearProgress
                       variant="determinate"
                       value={ratio}
-                      color={t.status === 'selesai' ? 'success' : 'primary'}
+                      color="success"
                       sx={{ height: 6, borderRadius: 4 }}
                     />
                   </div>

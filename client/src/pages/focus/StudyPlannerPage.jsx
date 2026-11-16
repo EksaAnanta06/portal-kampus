@@ -218,12 +218,17 @@ export default function StudyPlannerPage() {
     }
   };
 
+  const refreshAfterMutation = useCallback(async () => {
+    setStats(null);
+    await loadPlannerData();
+  }, [loadPlannerData]);
+
   const handleQuickScheduleStatus = async (schedId, status) => {
     setSchedMenuAnchor(null);
     try {
       await focusApi.updateScheduleStatus(schedId, status);
       toast.success('Status sesi diperbarui.');
-      await loadPlannerData();
+      await refreshAfterMutation();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Gagal memperbarui status sesi.'));
     }
@@ -234,7 +239,7 @@ export default function StudyPlannerPage() {
     try {
       await focusApi.updateTaskStatus(taskId, status);
       toast.success('Status tugas diperbarui.');
-      await loadPlannerData();
+      await refreshAfterMutation();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Gagal memperbarui status tugas.'));
     }
@@ -252,7 +257,7 @@ export default function StudyPlannerPage() {
         toast.success('Sesi jadwal dihapus.');
       }
       setConfirmDelete(null);
-      await loadPlannerData();
+      await refreshAfterMutation();
     } catch (err) {
       toast.error(getErrorMessage(err, 'Gagal menghapus data.'));
     } finally {
@@ -262,50 +267,56 @@ export default function StudyPlannerPage() {
 
   return (
     <div className="space-y-5 w-full max-w-full overflow-x-hidden">
-      {/* Header Bersih */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white">
-            Rencana Belajar & Tugas
-          </h1>
-          <p className="m-0 mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Pisahkan batas waktu <strong>Deadline</strong> dengan jadwal <strong>Kapan Dikerjakan</strong>.
-          </p>
-        </div>
+      {/* Hero Banner Hijau (serasi dengan Materi Perpustakaan) */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-emerald-600 via-teal-700 to-sky-700 p-5 text-white shadow-xl sm:p-7 md:p-8">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="min-w-0 space-y-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-50">
+              <CalendarMonthRoundedIcon sx={{ fontSize: 14 }} />
+              Perencana & Fokus Mandiri
+            </span>
+            <h1 className="m-0 text-xl font-black tracking-tight text-white sm:text-2xl md:text-3xl">
+              Rencana Belajar & Tugas
+            </h1>
+            <p className="m-0 max-w-xl text-xs text-emerald-100 sm:text-sm">
+              Pisahkan batas waktu <strong>Deadline</strong> dengan jadwal <strong>Kapan Dikerjakan</strong>.
+            </p>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="contained"
-            startIcon={<AddRoundedIcon />}
-            onClick={() => {
-              setEditingTask(null);
-              setTaskModalOpen(true);
-            }}
-            className="!min-h-[44px]"
-          >
-            Tambah Tugas
-          </Button>
-          <Tooltip title="Buka Timer Fokus">
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
             <Button
-              variant="outlined"
-              startIcon={<TimerRoundedIcon />}
-              onClick={() => navigate('/fokus')}
-              className="!min-h-[44px]"
+              variant="contained"
+              startIcon={<AddRoundedIcon />}
+              onClick={() => {
+                setEditingTask(null);
+                setTaskModalOpen(true);
+              }}
+              className="!min-h-[44px] !rounded-xl !bg-white !px-4 !font-bold !text-emerald-700 hover:!bg-emerald-50 !shadow-sm"
             >
-              Timer Fokus
+              Tambah Tugas
             </Button>
-          </Tooltip>
-          <Tooltip title="Pengaturan Fokus & Pengingat">
-            <IconButton
-              onClick={() => setSettingsOpen(true)}
-              aria-label="Pengaturan Fokus & Pengingat"
-              className="!min-h-[44px] !min-w-[44px] border border-slate-200 dark:border-slate-700"
-            >
-              <SettingsRoundedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
+            <Tooltip title="Buka Timer Fokus">
+              <Button
+                variant="outlined"
+                startIcon={<TimerRoundedIcon />}
+                onClick={() => navigate('/fokus')}
+                className="!min-h-[44px] !rounded-xl !border-white/30 !bg-white/15 !px-4 !font-bold !text-white hover:!bg-white/25"
+              >
+                Timer Fokus
+              </Button>
+            </Tooltip>
+            <Tooltip title="Pengaturan Fokus & Pengingat">
+              <IconButton
+                onClick={() => setSettingsOpen(true)}
+                aria-label="Pengaturan Fokus & Pengingat"
+                className="!min-h-[44px] !min-w-[44px] !rounded-xl !border !border-white/30 !bg-white/15 !text-white hover:!bg-white/25"
+              >
+                <SettingsRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Peringatan Sesi Terlewat / Beban */}
       {missedCount > 0 && (
@@ -340,6 +351,12 @@ export default function StudyPlannerPage() {
           onChange={(_e, val) => setTab(val)}
           variant="scrollable"
           scrollButtons="auto"
+          textColor="inherit"
+          sx={{
+            '& .MuiTab-root.Mui-selected': { color: '#059669', fontWeight: 800 },
+            '.dark & .MuiTab-root.Mui-selected': { color: '#34d399' },
+            '& .MuiTabs-indicator': { backgroundColor: '#059669' },
+          }}
         >
           <Tab label={`Rencana Kerja (${schedules.filter((s) => s.status === 'terjadwal').length})`} />
           <Tab label={`Tugas Pribadi (${tasks.filter((t) => t.status !== 'selesai').length})`} />
@@ -364,7 +381,7 @@ export default function StudyPlannerPage() {
                   onClick={() => setDayFilter(f.key)}
                   className={`min-h-[40px] rounded-xl px-3.5 text-xs font-bold transition ${
                     dayFilter === f.key
-                      ? 'bg-pasim text-white shadow-sm'
+                      ? 'bg-emerald-600 text-white shadow-sm'
                       : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-navy-800 dark:border-slate-700 dark:text-slate-300'
                   }`}
                 >
@@ -377,7 +394,7 @@ export default function StudyPlannerPage() {
               <Button
                 size="small"
                 variant={planView === 'list' ? 'contained' : 'text'}
-                color={planView === 'list' ? 'primary' : 'inherit'}
+                color={planView === 'list' ? 'success' : 'inherit'}
                 startIcon={<FormatListBulletedRoundedIcon fontSize="small" />}
                 onClick={() => setPlanView('list')}
                 className="!min-h-[38px]"
@@ -387,7 +404,7 @@ export default function StudyPlannerPage() {
               <Button
                 size="small"
                 variant={planView === 'week' ? 'contained' : 'text'}
-                color={planView === 'week' ? 'primary' : 'inherit'}
+                color={planView === 'week' ? 'success' : 'inherit'}
                 startIcon={<CalendarViewWeekRoundedIcon fontSize="small" />}
                 onClick={() => setPlanView('week')}
                 className="!min-h-[38px]"
@@ -414,7 +431,7 @@ export default function StudyPlannerPage() {
                   <div
                     key={dk}
                     className={`card-surface p-3 space-y-2 ${
-                      isToday ? 'ring-2 ring-pasim/50' : ''
+                      isToday ? 'ring-2 ring-emerald-500/60 dark:ring-emerald-400/50' : ''
                     }`}
                   >
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 dark:border-slate-800">
@@ -422,7 +439,7 @@ export default function StudyPlannerPage() {
                         {formatDayHeading(dk)}
                       </span>
                       {isToday && (
-                        <span className="rounded bg-pasim-50 px-1.5 py-0.5 text-[10px] font-bold text-pasim dark:bg-pasim-900/40 dark:text-pasim-300">
+                        <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
                           Hari Ini
                         </span>
                       )}
@@ -463,7 +480,7 @@ export default function StudyPlannerPage() {
               title="Belum ada sesi terjadwal"
               description="Belum ada sesi terjadwal. Mulai dengan menjadwalkan satu tugas dari tab Tugas Pribadi."
               action={
-                <Button variant="contained" onClick={() => setTab(1)} className="!min-h-[44px]">
+                <Button variant="contained" color="success" onClick={() => setTab(1)} className="!min-h-[44px]">
                   Buka Tugas Pribadi
                 </Button>
               }
@@ -506,16 +523,17 @@ export default function StudyPlannerPage() {
                             )}
                           </div>
 
-                          <div className="flex items-center gap-2 shrink-0">
+                          <div className="w-full sm:w-auto flex items-center gap-2 shrink-0">
                             {item.status === 'terjadwal' && (
                               <Button
                                 variant="contained"
+                                color="success"
                                 size="small"
                                 startIcon={<PlayArrowRoundedIcon />}
                                 onClick={() =>
                                   handleStartFocusFromTask({ id: item.tugas_id }, item)
                                 }
-                                className="!min-h-[44px]"
+                                className="!min-h-[44px] flex-1 sm:flex-none"
                               >
                                 Mulai
                               </Button>
@@ -527,7 +545,7 @@ export default function StudyPlannerPage() {
                                 size="small"
                                 startIcon={<EventRepeatRoundedIcon />}
                                 onClick={() => setRescheduleTarget(item)}
-                                className="!min-h-[44px]"
+                                className="!min-h-[44px] flex-1 sm:flex-none"
                               >
                                 Jadwalkan Ulang
                               </Button>
@@ -567,6 +585,7 @@ export default function StudyPlannerPage() {
               action={
                 <Button
                   variant="contained"
+                  color="success"
                   startIcon={<AddRoundedIcon />}
                   onClick={() => {
                     setEditingTask(null);
@@ -642,7 +661,7 @@ export default function StudyPlannerPage() {
                           </span>
                         </div>
                         <div>
-                          <span className="block text-[10px] font-bold uppercase tracking-wider text-pasim dark:text-pasim-300">
+                          <span className="block text-[10px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
                             Jadwal Kerja ({t.jadwal_mendatang_count || 0} sesi)
                           </span>
                           <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -664,7 +683,7 @@ export default function StudyPlannerPage() {
                           <LinearProgress
                             variant="determinate"
                             value={progressPct}
-                            color={isDone ? 'success' : 'primary'}
+                            color="success"
                             sx={{ height: 5, borderRadius: 4 }}
                           />
                         </div>
@@ -675,6 +694,7 @@ export default function StudyPlannerPage() {
                       <div className="flex items-center gap-2 pt-1">
                         <Button
                           variant="outlined"
+                          color="success"
                           size="small"
                           startIcon={<CalendarMonthRoundedIcon />}
                           onClick={() => setSchedulingTask(t)}
@@ -684,6 +704,7 @@ export default function StudyPlannerPage() {
                         </Button>
                         <Button
                           variant="contained"
+                          color="success"
                           size="small"
                           startIcon={<PlayArrowRoundedIcon />}
                           onClick={() => handleStartFocusFromTask(t)}
@@ -815,21 +836,21 @@ export default function StudyPlannerPage() {
         open={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
         initialTask={editingTask}
-        onSaved={loadPlannerData}
+        onSaved={refreshAfterMutation}
       />
 
       <ScheduleTaskSheet
         open={Boolean(schedulingTask)}
         onClose={() => setSchedulingTask(null)}
         task={schedulingTask}
-        onScheduled={loadPlannerData}
+        onScheduled={refreshAfterMutation}
       />
 
       <RescheduleDialog
         open={Boolean(rescheduleTarget)}
         onClose={() => setRescheduleTarget(null)}
         session={rescheduleTarget}
-        onRescheduled={loadPlannerData}
+        onRescheduled={refreshAfterMutation}
       />
 
       <FocusSettingsModal
@@ -839,7 +860,7 @@ export default function StudyPlannerPage() {
         onSaved={(nextSettings) => {
           setSettings(nextSettings);
           updateLocalSettings(nextSettings);
-          loadPlannerData();
+          refreshAfterMutation();
         }}
       />
 

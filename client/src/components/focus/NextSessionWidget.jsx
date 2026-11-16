@@ -29,17 +29,22 @@ export default function NextSessionWidget() {
       return;
     }
     let active = true;
-    focusApi
-      .getNextSessionWidget()
-      .then((res) => {
-        if (active) setNextSchedule(res.data?.nextSchedule || null);
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    const fetchNext = () => {
+      focusApi
+        .getNextSessionWidget()
+        .then((res) => {
+          if (active) setNextSchedule(res.data?.nextSchedule || null);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setLoading(false);
+        });
+    };
+    fetchNext();
+    window.addEventListener('pasim-focus-data-updated', fetchNext);
     return () => {
       active = false;
+      window.removeEventListener('pasim-focus-data-updated', fetchNext);
     };
   }, [canAccess]);
 
@@ -75,22 +80,23 @@ export default function NextSessionWidget() {
   };
 
   return (
-    <div className="card-surface p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 border-l-4 border-l-pasim">
+    <div className="card-surface p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3.5 border-l-4 border-l-emerald-600">
       <div className="flex items-start gap-3 min-w-0 flex-1">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-pasim-50 text-pasim dark:bg-pasim-900/30 dark:text-pasim-300">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
           <TimerRoundedIcon />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-pasim dark:text-pasim-300">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
               {activeSession ? 'Timer Fokus Aktif' : 'Sesi Berikutnya'}
             </span>
             {activeSession ? (
-              <Chip size="small" color="primary" label={`Sisa ${formattedTime}`} className="!h-5 !text-[11px]" />
+              <Chip size="small" color="success" label={`Sisa ${formattedTime}`} className="!h-5 !text-[11px]" />
             ) : nextSchedule ? (
               <Chip
                 size="small"
                 variant="outlined"
+                color="success"
                 label={`${nextSchedule.durasi_menit} menit`}
                 className="!h-5 !text-[11px]"
               />
@@ -135,6 +141,7 @@ export default function NextSessionWidget() {
             component={Link}
             to="/fokus"
             variant="contained"
+            color="success"
             startIcon={<TimerRoundedIcon />}
             className="!min-h-[44px] w-full sm:w-auto"
           >
@@ -143,6 +150,7 @@ export default function NextSessionWidget() {
         ) : nextSchedule ? (
           <Button
             variant="contained"
+            color="success"
             startIcon={<PlayArrowRoundedIcon />}
             disabled={actionLoading}
             onClick={handleStartFromSchedule}
@@ -155,6 +163,7 @@ export default function NextSessionWidget() {
             component={Link}
             to="/rencana"
             variant="outlined"
+            color="success"
             startIcon={<CalendarMonthRoundedIcon />}
             className="!min-h-[44px] w-full sm:w-auto"
           >

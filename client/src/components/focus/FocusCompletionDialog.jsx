@@ -104,7 +104,7 @@ export default function FocusCompletionDialog({ onTaskCompleted }) {
         <Button
           type="submit"
           variant="contained"
-          color="primary"
+          color="success"
           disabled={actionLoading}
           className="!min-h-[44px]"
         >
@@ -120,6 +120,8 @@ export default function FocusCompletionDialog({ onTaskCompleted }) {
         anchor="bottom"
         open={Boolean(completionPromptSession)}
         onClose={dismissCompletionPrompt}
+        transitionDuration={{ enter: 180, exit: 0 }}
+        ModalProps={{ keepMounted: false, closeAfterTransition: false }}
         PaperProps={{
           className:
             'rounded-t-3xl p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] bg-white dark:bg-navy-800',

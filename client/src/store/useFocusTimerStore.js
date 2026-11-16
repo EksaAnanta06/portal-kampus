@@ -74,6 +74,7 @@ let globalTickInterval = null;
 let wakeLockSentinel = null;
 let listenersBound = false;
 let finishingSessionId = null;
+let syncPromise = null;
 
 const releaseWakeLock = async () => {
   if (wakeLockSentinel) {
@@ -264,25 +265,30 @@ const useFocusTimerStore = create((set, get) => ({
   },
 
   syncWithServer: async ({ silent = false } = {}) => {
+    if (syncPromise) return syncPromise;
     if (!silent) set({ loading: true });
-    try {
-      const res = await focusApi.getActiveTimer();
-      get()._applyServerPayload(
-        {
-          session: res.data?.activeSession || null,
-          autoCompletedSession: res.data?.autoCompletedSession || null,
-          settings: res.data?.settings || null,
-          serverNow: res.data?.server_now,
-        },
-        { silentFinish: false }
-      );
-      return res.data;
-    } catch {
-      set({ initialized: true });
-      return null;
-    } finally {
-      if (!silent) set({ loading: false });
-    }
+    syncPromise = (async () => {
+      try {
+        const res = await focusApi.getActiveTimer();
+        get()._applyServerPayload(
+          {
+            session: res.data?.activeSession || null,
+            autoCompletedSession: res.data?.autoCompletedSession || null,
+            settings: res.data?.settings || null,
+            serverNow: res.data?.server_now,
+          },
+          { silentFinish: false }
+        );
+        return res.data;
+      } catch {
+        set({ initialized: true });
+        return null;
+      } finally {
+        syncPromise = null;
+        if (!silent) set({ loading: false });
+      }
+    })();
+    return syncPromise;
   },
 
   startSession: async (payload = {}) => {

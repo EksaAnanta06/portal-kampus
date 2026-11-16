@@ -39,7 +39,7 @@ export default function MiniFocusTimerBar() {
       <LinearProgress
         variant="determinate"
         value={progressPercent}
-        color={activeSession.tipe === 'fokus' ? 'primary' : 'success'}
+        color={activeSession.tipe === 'fokus' ? 'success' : 'info'}
         sx={{ height: 3 }}
       />
       <div className="flex items-center justify-between gap-2.5 px-3 py-2">
@@ -47,7 +47,7 @@ export default function MiniFocusTimerBar() {
           to="/fokus"
           className="flex min-w-0 flex-1 items-center gap-2.5 text-left"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-pasim-50 text-pasim dark:bg-pasim-900/40 dark:text-pasim-300">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300">
             <TimerRoundedIcon fontSize="small" />
           </span>
           <div className="min-w-0 flex-1">
@@ -75,7 +75,7 @@ export default function MiniFocusTimerBar() {
               onClick={isPaused ? resumeSession : pauseSession}
               disabled={actionLoading}
               aria-label={isPaused ? 'Lanjutkan Timer' : 'Jeda Timer'}
-              className="!min-h-[44px] !min-w-[44px] !text-pasim dark:!text-pasim-300"
+              className="!min-h-[44px] !min-w-[44px] !text-emerald-600 dark:!text-emerald-300"
             >
               {isPaused ? <PlayArrowRoundedIcon /> : <PauseRoundedIcon />}
             </IconButton>
