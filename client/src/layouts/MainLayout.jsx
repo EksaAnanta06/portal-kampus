@@ -241,7 +241,7 @@ export default function MainLayout() {
               onClick={onClose}
             >
               <CasinoRoundedIcon fontSize="small" />
-              <span>Poker Virtual</span>
+              <span>Capsa Banting (Big 2)</span>
             </NavLink>
           </div>
         )}

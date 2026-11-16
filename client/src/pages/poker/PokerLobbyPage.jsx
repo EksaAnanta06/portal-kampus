@@ -10,6 +10,7 @@ import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import TextField from '@mui/material/TextField';
 import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
@@ -40,6 +41,7 @@ export default function PokerLobbyPage() {
     turnTimeoutSec: 30,
   });
   const [joinCode, setJoinCode] = useState('');
+  const [submittingBot, setSubmittingBot] = useState(false);
   const [submittingCreate, setSubmittingCreate] = useState(false);
   const [submittingJoin, setSubmittingJoin] = useState(false);
   const [togglingFeature, setTogglingFeature] = useState(false);
@@ -49,15 +51,28 @@ export default function PokerLobbyPage() {
     fetchLobbyStatus().catch(() => {});
   }, [fetchLobbyStatus]);
 
+  const handlePlayVsBot = async () => {
+    setSubmittingBot(true);
+    try {
+      const state = await createRoom({ ...createForm, quickBotMode: true });
+      toast.success(`Meja Capsa Banting ${state.roomId} siap! Melawan 3 Bot.`);
+      navigate(`/poker/${state.roomId}`);
+    } catch (err) {
+      toast.error(err.message || 'Gagal memulai permainan lawan Bot.');
+    } finally {
+      setSubmittingBot(false);
+    }
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
     setSubmittingCreate(true);
     try {
-      const state = await createRoom(createForm);
+      const state = await createRoom({ ...createForm, quickBotMode: false });
       toast.success(`Room ${state.roomId} dibuat.`);
       navigate(`/poker/${state.roomId}`);
     } catch (err) {
-      toast.error(err.message || 'Gagal membuat room Poker.');
+      toast.error(err.message || 'Gagal membuat room.');
     } finally {
       setSubmittingCreate(false);
     }
@@ -88,7 +103,7 @@ export default function PokerLobbyPage() {
       toast.success(res.message);
       await fetchLobbyStatus();
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Gagal mengubah status fitur Poker.'));
+      toast.error(getErrorMessage(err, 'Gagal mengubah status fitur Capsa Banting.'));
     } finally {
       setTogglingFeature(false);
     }
@@ -110,10 +125,10 @@ export default function PokerLobbyPage() {
         <div className="card-surface p-6 text-center space-y-3">
           <CasinoRoundedIcon sx={{ fontSize: 44 }} className="text-slate-400 mx-auto" />
           <h1 className="m-0 text-xl font-extrabold text-slate-900 dark:text-white">
-            Poker Virtual Tidak Tersedia
+            Capsa Banting Tidak Tersedia
           </h1>
           <p className="m-0 text-sm text-slate-500 dark:text-slate-400">
-            Fitur Poker Virtual sedang dinonaktifkan sementara oleh pengelola portal.
+            Fitur Poker Capsa Banting sedang dinonaktifkan sementara oleh pengelola portal.
           </p>
           <Button component={Link} to="/" variant="outlined" className="!min-h-[44px]">
             Kembali ke Beranda
@@ -133,26 +148,38 @@ export default function PokerLobbyPage() {
           <div className="space-y-1.5">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-100">
               <CasinoRoundedIcon sx={{ fontSize: 14 }} />
-              Hiburan Mahasiswa · Texas Hold'em
+              Hiburan Mahasiswa · Capsa Banting (Big 2)
             </span>
             <h1 className="m-0 text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white">
-              Lobby Poker Chip Virtual
+              Poker Capsa Banting Virtual
             </h1>
             <p className="m-0 text-xs sm:text-sm text-emerald-100">
-              Main santai maksimal 4 pemain dalam room privat dengan timer adil dan tanpa uang asli.
+              Aturan Big 2 klasik: 4 pemain × 13 kartu, kartu <strong>2♠</strong> tertinggi &amp; pembukaan wajib <strong>3♦</strong>. Main cepat lawan Bot atau mabar lewat ID room!
             </p>
           </div>
 
-          {lobbyData?.activeRoomId && (
-            <Button
-              component={Link}
-              to={`/poker/${lobbyData.activeRoomId}`}
-              variant="contained"
-              className="!min-h-[44px] !rounded-xl !bg-white !font-bold !text-emerald-800 hover:!bg-emerald-50 shrink-0"
-            >
-              Lanjutkan Room #{lobbyData.activeRoomId}
-            </Button>
-          )}
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            {lobbyData?.activeRoomId ? (
+              <Button
+                component={Link}
+                to={`/poker/${lobbyData.activeRoomId}`}
+                variant="contained"
+                className="!min-h-[44px] !rounded-xl !bg-white !font-bold !text-emerald-800 hover:!bg-emerald-50"
+              >
+                Lanjutkan Room #{lobbyData.activeRoomId}
+              </Button>
+            ) : (
+              <Button
+                variant="contained"
+                startIcon={<SmartToyRoundedIcon />}
+                disabled={submittingBot || !featureEnabled}
+                onClick={handlePlayVsBot}
+                className="!min-h-[46px] !rounded-xl !bg-white !px-5 !font-black !text-emerald-800 hover:!bg-emerald-50 shadow-lg"
+              >
+                {submittingBot ? 'Menyiapkan Meja...' : 'Main vs 3 Bot (Big 2)'}
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -166,7 +193,7 @@ export default function PokerLobbyPage() {
         <div className="card-surface p-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-l-amber-500">
           <div>
             <div className="text-sm font-bold text-slate-900 dark:text-white">
-              Kontrol Admin Fitur Poker
+              Kontrol Admin Fitur Capsa Banting
             </div>
             <div className="text-xs text-slate-500 dark:text-slate-400">
               Matikan kapan saja tanpa redeploy. Room aktif otomatis ditutup dengan pemberitahuan sopan.
@@ -186,13 +213,13 @@ export default function PokerLobbyPage() {
         </div>
       )}
 
-      {/* Grid Buat Room & Gabung Room */}
+      {/* Grid Buat Room Privat & Gabung Room */}
       <div className="grid gap-5 md:grid-cols-2">
         <form onSubmit={handleCreate} className="card-surface p-5 space-y-4">
           <div className="flex items-center gap-2">
             <AddCircleOutlineRoundedIcon className="text-emerald-600 dark:text-emerald-400" />
             <h2 className="m-0 text-base font-extrabold text-slate-900 dark:text-white">
-              Buat Room Privat Baru
+              Buat Room Mabar (Privat)
             </h2>
           </div>
 
@@ -210,13 +237,13 @@ export default function PokerLobbyPage() {
 
             <TextField
               select
-              label="Blind (SB/BB)"
+              label="Taruhan / Kartu"
               value={createForm.blindLevel}
               onChange={(e) => setCreateForm({ ...createForm, blindLevel: e.target.value })}
             >
-              <MenuItem value="5/10">5 / 10</MenuItem>
-              <MenuItem value="10/20">10 / 20</MenuItem>
-              <MenuItem value="25/50">25 / 50</MenuItem>
+              <MenuItem value="5/10">5 Chip / Kartu</MenuItem>
+              <MenuItem value="10/20">10 Chip / Kartu</MenuItem>
+              <MenuItem value="25/50">25 Chip / Kartu</MenuItem>
             </TextField>
 
             <TextField
@@ -231,6 +258,10 @@ export default function PokerLobbyPage() {
             </TextField>
           </div>
 
+          <p className="m-0 text-[11px] text-slate-500 dark:text-slate-400">
+            Jika teman yang masuk kurang dari 4 orang, kursi kosong otomatis diisi Bot AI saat dimulai.
+          </p>
+
           <Button
             type="submit"
             variant="contained"
@@ -239,7 +270,7 @@ export default function PokerLobbyPage() {
             disabled={submittingCreate || !featureEnabled}
             className="!min-h-[46px] !font-bold"
           >
-            {submittingCreate ? 'Membuat Room...' : 'Buat Room Sekarang'}
+            {submittingCreate ? 'Membuat Room...' : 'Buat Room Mabar'}
           </Button>
         </form>
 
@@ -276,7 +307,7 @@ export default function PokerLobbyPage() {
         </form>
       </div>
 
-      {/* Statistik Singkat Bermain (Tanpa Saldo Chip) */}
+      {/* Ringkasan Aturan Singkat Capsa Banting + Statistik */}
       <div className="card-surface p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
@@ -296,9 +327,18 @@ export default function PokerLobbyPage() {
           )}
         </div>
 
+        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-navy dark:text-slate-300 space-y-1">
+          <div>
+            <strong>Urutan Angka:</strong> 3 &lt; 4 &lt; 5 &lt; 6 &lt; 7 &lt; 8 &lt; 9 &lt; 10 &lt; J &lt; Q &lt; K &lt; A &lt; <strong>2</strong> &nbsp;|&nbsp; <strong>Urutan Kembang:</strong> ♦ &lt; ♣ &lt; ♥ &lt; ♠
+          </div>
+          <div>
+            <strong>Kombinasi 5 Kartu:</strong> Straight (Seri) &lt; Flush (Warna) &lt; Full House (Polo) &lt; Four of a Kind (Bom) &lt; Straight Flush (Bom Utama). Bom bisa memotong kartu <strong>2</strong>!
+          </div>
+        </div>
+
         {!statusLoading && stats.recent_matches?.length === 0 ? (
           <p className="m-0 text-xs text-slate-400">
-            Belum ada riwayat room selesai. Buat room atau gabung bersama teman!
+            Belum ada riwayat permainan selesai. Tekan &quot;Main vs 3 Bot (Big 2)&quot; untuk langsung bermain!
           </p>
         ) : (
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -319,7 +359,7 @@ export default function PokerLobbyPage() {
                   />
                 </div>
                 <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {m.player_count} pemain · {m.jumlah_tangan} tangan
+                  {m.player_count} pemain · {m.jumlah_tangan} ronde
                 </div>
               </div>
             ))}
@@ -327,7 +367,7 @@ export default function PokerLobbyPage() {
         )}
       </div>
 
-      {/* Daftar Room Aktif untuk Staff (Moderasi Tutup Paksa) */}
+      {/* Daftar Room Aktif untuk Staff */}
       {isStaff && lobbyData?.adminRooms?.length > 0 && (
         <div className="card-surface p-5 space-y-3">
           <h3 className="m-0 text-sm font-extrabold text-slate-900 dark:text-white">
@@ -342,7 +382,7 @@ export default function PokerLobbyPage() {
                 <div>
                   <span className="font-mono font-bold text-slate-900 dark:text-white">#{rm.roomId}</span>
                   <span className="ml-2 text-slate-500">
-                    Fase: {rm.phase} · {rm.playerCount} pemain · Tangan #{rm.handNumber}
+                    Fase: {rm.phase} · {rm.playerCount} kursi · Ronde #{rm.handNumber}
                   </span>
                 </div>
                 <Button

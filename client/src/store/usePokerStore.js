@@ -13,6 +13,8 @@ const formatEventSummary = (ev) => {
       return `${p.fullName} bergabung ke meja.`;
     case 'player_left_fold':
       return `${p.fullName} keluar (otomatis fold).`;
+    case 'player_left_bot_takeover':
+      return `${p.formerName} meninggalkan meja (digantikan Bot sementara).`;
     case 'player_kicked':
       return `${p.fullName} dikeluarkan dari room oleh host.`;
     case 'player_disconnected':
@@ -22,22 +24,18 @@ const formatEventSummary = (ev) => {
     case 'host_migrated':
       return `Host berpindah ke ${p.fullName}.`;
     case 'hand_started':
-      return `Tangan #${p.handNumber} dimulai (Dealer kursi ${Number(p.dealerSeat) + 1}).`;
-    case 'community_dealt': {
+      return `Ronde #${p.handNumber} dimulai${p.mustIncludeThreeDiamond ? ' (pembukaan wajib 3♦)' : ''}.`;
+    case 'cards_played': {
       const codes = (p.cards || []).map((c) => c.code).join(' ');
-      return `${String(p.phase || '').toUpperCase()}: ${codes}`;
-    }
-    case 'player_action': {
-      const amt = p.amount > 0 ? ` (${p.amount})` : '';
       const auto = p.auto ? ' [otomatis]' : '';
-      return `${p.fullName} ${String(p.action).toUpperCase()}${amt}${auto}`;
+      return `${p.fullName} banting ${p.label}: ${codes} (sisa ${p.remainingCount})${auto}`;
     }
-    case 'hand_won_by_fold':
-      return `${p.winnerName} memenangkan pot ${p.amount} chip (lawan fold).`;
-    case 'hand_showdown': {
-      const firstWinner = Object.values(p.revealedHands || {})[0];
-      return `Showdown Tangan #${p.handNumber} selesai${firstWinner ? '.' : '.'}`;
-    }
+    case 'player_pass':
+      return `${p.fullName} lewat (Pass)${p.auto ? ' [otomatis]' : ''}.`;
+    case 'trick_cleared':
+      return 'Semua lawan lewat — meja dibersihkan untuk pemimpin putaran.';
+    case 'round_won':
+      return `${p.winnerName} menghabiskan kartu & memenangkan ${p.totalWon} chip!`;
     case 'game_finished':
       return p.winnerName
         ? `Permainan selesai! Juara meja: ${p.winnerName}.`
@@ -266,13 +264,13 @@ const usePokerStore = create((set, get) => ({
     if (!ack?.success) throw new Error(ack?.message || 'Gagal mengakhiri room.');
   },
 
-  sendGameAction: async ({ roomId, handNumber, turnToken, action, amount }) => {
+  sendGameAction: async ({ roomId, handNumber, turnToken, action, cards }) => {
     const ack = await pokerSocket.emit('game:action', {
       roomId,
       handNumber,
       turnToken,
       action,
-      amount,
+      cards,
     });
     if (!ack?.success) throw new Error(ack?.message || 'Aksi ditolak oleh server.');
     if (ack.data) set({ roomState: ack.data });

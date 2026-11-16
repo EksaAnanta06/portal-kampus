@@ -20,6 +20,7 @@ import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
 import ExitToAppRoundedIcon from '@mui/icons-material/ExitToAppRounded';
 import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
 import PersonRemoveRoundedIcon from '@mui/icons-material/PersonRemoveRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import PokerCard from './PokerCard';
 import PokerActionPanel from './PokerActionPanel';
 import ConfirmDialog from '../common/ConfirmDialog';
@@ -28,6 +29,9 @@ import { getErrorMessage } from '../../api/axiosInstance';
 import { toast } from '../../store/useThemeStore';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import { getInitials } from '../../utils/constants';
+
+const RANK_POWER = { 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8, 12: 9, 13: 10, 14: 11, 2: 12 };
+const SUIT_POWER = { D: 0, C: 1, H: 2, S: 3 };
 
 function TurnCountdownBadge({ turnDeadlineAt, turnTimeoutSec, serverClockOffsetMs }) {
   const [secLeft, setSecLeft] = useState(turnTimeoutSec);
@@ -62,37 +66,23 @@ function TurnCountdownBadge({ turnDeadlineAt, turnTimeoutSec, serverClockOffsetM
           strokeDashoffset={94.25 - (pct / 100) * 94.25}
         />
       </svg>
-      <span className="absolute text-[10px] font-black text-slate-900 dark:text-white">{secLeft}</span>
+      <span className="absolute text-[10px] font-black text-white">{secLeft}</span>
     </div>
   );
 }
 
-function SeatCard({
+function OpponentSeatCard({
   seat,
-  isSelf = false,
   isTurn = false,
-  isDealer = false,
-  isSb = false,
-  isBb = false,
   isWinner = false,
   reaction = null,
-  fourColor = false,
   turnDeadlineAt = null,
   turnTimeoutSec = 30,
   serverClockOffsetMs = 0,
-  winningCardCodes = new Set(),
   canKick = false,
   onKick,
 }) {
-  if (!seat) {
-    return (
-      <div className="rounded-xl border border-dashed border-white/20 bg-black/15 px-3 py-2 text-center text-[11px] text-white/50">
-        Kursi Kosong
-      </div>
-    );
-  }
-
-  const cardsToShow = seat.holeCards;
+  if (!seat) return null;
 
   return (
     <div
@@ -102,7 +92,7 @@ function SeatCard({
           : isTurn
           ? 'border-emerald-400 bg-slate-900/90 ring-2 ring-emerald-400/60 shadow-lg'
           : 'border-white/15 bg-slate-900/75'
-      } ${seat.folded ? 'opacity-65' : ''}`}
+      }`}
     >
       {reaction?.emote && (
         <div
@@ -117,45 +107,32 @@ function SeatCard({
         <div className="flex items-center gap-2 min-w-0">
           <Avatar
             src={getOptimizedImageUrl(seat.avatarUrl, { width: 64, height: 64 })}
-            sx={{ width: isSelf ? 36 : 30, height: isSelf ? 36 : 30, fontSize: 12 }}
+            sx={{ width: 32, height: 32, fontSize: 12 }}
           >
-            {getInitials(seat.fullName)}
+            {seat.isBot ? <SmartToyRoundedIcon fontSize="small" /> : getInitials(seat.fullName)}
           </Avatar>
           <div className="min-w-0">
             <div className="flex items-center gap-1">
-              <span className="truncate text-xs font-bold text-white max-w-[96px] sm:max-w-[135px]">
+              <span className="truncate text-xs font-bold text-white max-w-[96px] sm:max-w-[130px]">
                 {seat.fullName}
-                {isSelf ? ' (Kamu)' : ''}
               </span>
-              {isDealer && (
-                <span className="rounded-full bg-amber-400 px-1.5 py-0 text-[9px] font-black text-slate-900">
-                  D
-                </span>
-              )}
-              {isSb && (
+              {seat.isBot && (
                 <span className="rounded bg-sky-500/30 px-1 text-[9px] font-bold text-sky-200">
-                  SB
-                </span>
-              )}
-              {isBb && (
-                <span className="rounded bg-violet-500/30 px-1 text-[9px] font-bold text-violet-200">
-                  BB
+                  BOT
                 </span>
               )}
             </div>
-            <div className="flex flex-wrap items-center gap-1 text-[11px] font-extrabold text-emerald-300">
-              <span>{seat.chips.toLocaleString('id-ID')} chip</span>
-              {seat.streetBet > 0 && (
-                <span className="rounded bg-emerald-500/20 px-1 text-[10px] text-emerald-200">
-                  Bet {seat.streetBet}
-                </span>
-              )}
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold text-emerald-300">
+              <span>{seat.chips.toLocaleString('id-ID')}</span>
+              <span className="rounded-md bg-white/15 px-1.5 py-0.2 text-[10px] font-black text-amber-200">
+                {seat.cardCount} Kartu
+              </span>
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {isTurn && turnDeadlineAt && (
+          {isTurn && !seat.isBot && turnDeadlineAt && (
             <TurnCountdownBadge
               turnDeadlineAt={turnDeadlineAt}
               turnTimeoutSec={turnTimeoutSec}
@@ -178,17 +155,16 @@ function SeatCard({
         </div>
       </div>
 
-      {/* Status chips & hole cards */}
-      <div className="mt-1.5 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-1">
-          {seat.folded && (
-            <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-slate-300">
-              FOLD
+      {(seat.hasPassed || seat.isAway || !seat.connected || isWinner) && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {seat.hasPassed && (
+            <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-slate-200">
+              LEWAT (PASS)
             </span>
           )}
-          {seat.allIn && (
-            <span className="rounded bg-amber-500/30 px-1.5 py-0.5 text-[9px] font-bold text-amber-200">
-              ALL-IN
+          {isWinner && (
+            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-slate-900">
+              MENANG RONDE
             </span>
           )}
           {seat.isAway && (
@@ -196,34 +172,13 @@ function SeatCard({
               AWAY
             </span>
           )}
-          {!seat.connected && (
+          {!seat.connected && !seat.isBot && (
             <span className="rounded bg-rose-500/30 px-1.5 py-0.5 text-[9px] font-bold text-rose-200">
               TERPUTUS
             </span>
           )}
         </div>
-
-        {seat.inHand && (cardsToShow || seat.hasCards) && (
-          <div className="flex items-center gap-1">
-            {cardsToShow ? (
-              cardsToShow.map((c) => (
-                <PokerCard
-                  key={c.code}
-                  card={c}
-                  size={isSelf ? 'md' : 'xs'}
-                  fourColor={fourColor}
-                  highlight={winningCardCodes.has(c.code)}
-                />
-              ))
-            ) : (
-              <>
-                <PokerCard faceDown size="xs" />
-                <PokerCard faceDown size="xs" />
-              </>
-            )}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -257,14 +212,42 @@ export default function PokerTableView({
   });
   const [reporting, setReporting] = useState(false);
 
-  const { roomId, room, table, viewerSeat, validActions } = roomState;
+  const [selectedCodes, setSelectedCodes] = useState([]);
+  const [hintIndex, setHintIndex] = useState(0);
+  const [sortMode, setSortMode] = useState('rank');
+
+  const { roomId, room, table, viewerSeat, myHoleCards, validActions } = roomState;
   const seats = table?.seats || [];
   const isHost = room?.hostUserId === currentUserId;
   const isStaff = ['admin', 'moderator'].includes(currentUserRole);
   const mySeat = seats.find((s) => s.userId === currentUserId) || null;
-  const otherSeats = seats.filter((s) => s.userId !== currentUserId);
+  const reportableHumans = seats.filter((s) => s.userId !== currentUserId && !s.isBot);
 
-  // Petakan kursi secara relatif: "Kamu" selalu berada di posisi bawah
+  const sortedMyCards = useMemo(() => {
+    const raw = [...(myHoleCards || [])];
+    if (sortMode === 'suit') {
+      return raw.sort((a, b) => {
+        const sa = SUIT_POWER[a.suit] ?? 0;
+        const sb = SUIT_POWER[b.suit] ?? 0;
+        if (sa !== sb) return sa - sb;
+        return (RANK_POWER[a.rank] ?? 0) - (RANK_POWER[b.rank] ?? 0);
+      });
+    }
+    return raw.sort((a, b) => {
+      const ra = RANK_POWER[a.rank] ?? 0;
+      const rb = RANK_POWER[b.rank] ?? 0;
+      if (ra !== rb) return ra - rb;
+      return (SUIT_POWER[a.suit] ?? 0) - (SUIT_POWER[b.suit] ?? 0);
+    });
+  }, [myHoleCards, sortMode]);
+
+  // Reset pilihan bila kartu tangan berubah atau ronde baru dimulai
+  useEffect(() => {
+    const owned = new Set((myHoleCards || []).map((c) => c.code));
+    setSelectedCodes((prev) => prev.filter((code) => owned.has(code)));
+    setHintIndex(0);
+  }, [myHoleCards, room?.handNumber, table?.currentTurnSeat]);
+
   const relativeSeatMap = useMemo(() => {
     const base = viewerSeat ?? 0;
     const byOffset = (offset) => seats.find((s) => s.seatIndex === (base + offset) % 4) || null;
@@ -279,45 +262,71 @@ export default function PokerTableView({
   const activeTurnSeatObj = seats.find((s) => s.seatIndex === table?.currentTurnSeat);
   const isMyTurn = viewerSeat !== null && table?.currentTurnSeat === viewerSeat;
 
-  const winnerSeatSet = useMemo(
-    () => new Set(table?.lastHandResult?.winnerSeats || []),
-    [table?.lastHandResult]
-  );
-
-  const winningCardCodes = useMemo(() => {
-    const set = new Set();
-    const revealed = table?.lastHandResult?.revealedHands || {};
-    for (const seatIdx of winnerSeatSet) {
-      const codes = revealed[seatIdx]?.bestFiveCodes || [];
-      codes.forEach((c) => set.add(c));
-    }
-    return set;
-  }, [table?.lastHandResult, winnerSeatSet]);
+  const selectionSummary = useMemo(() => {
+    if (selectedCodes.length === 0) return null;
+    const matchedHint = (validActions?.suggestedMoves || []).find(
+      (m) =>
+        m.codes.length === selectedCodes.length &&
+        selectedCodes.every((c) => m.codes.includes(c))
+    );
+    if (matchedHint) return matchedHint.label;
+    return `${selectedCodes.length} kartu dipilih`;
+  }, [selectedCodes, validActions?.suggestedMoves]);
 
   const liveAnnouncement = useMemo(() => {
-    if (table?.lastHandResult?.reason === 'showdown') {
-      return `Tangan #${table.lastHandResult.handNumber} showdown selesai.`;
+    if (table?.lastHandResult) {
+      return `Ronde #${table.lastHandResult.handNumber} dimenangkan oleh ${table.lastHandResult.winnerName}.`;
     }
-    if (table?.lastHandResult?.reason === 'fold') {
-      return `Tangan #${table.lastHandResult.handNumber} dimenangkan lewat fold.`;
-    }
-    if (isMyTurn) return 'Giliran Anda untuk bertindak.';
+    if (isMyTurn) return 'Giliran Anda di meja Capsa Banting.';
     if (activeTurnSeatObj) return `Giliran ${activeTurnSeatObj.fullName}.`;
     return '';
   }, [table?.lastHandResult, isMyTurn, activeTurnSeatObj]);
 
-  const handleAction = async (action, amount = undefined) => {
+  const handleToggleCard = (code) => {
+    setSelectedCodes((prev) =>
+      prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]
+    );
+  };
+
+  const handlePlaySelected = async () => {
+    if (selectedCodes.length === 0) return;
     try {
       await onGameAction({
         roomId,
         handNumber: room.handNumber,
         turnToken: table.turnToken,
-        action,
-        amount,
+        action: 'play',
+        cards: selectedCodes,
       });
+      setSelectedCodes([]);
     } catch (err) {
-      toast.error(err.message || 'Gagal menjalankan aksi.');
+      toast.error(err.message || 'Kombinasi kartu belum sah atau kurang tinggi.');
     }
+  };
+
+  const handlePass = async () => {
+    try {
+      await onGameAction({
+        roomId,
+        handNumber: room.handNumber,
+        turnToken: table.turnToken,
+        action: 'pass',
+      });
+      setSelectedCodes([]);
+    } catch (err) {
+      toast.error(err.message || 'Gagal melewati giliran.');
+    }
+  };
+
+  const handleHint = () => {
+    const hints = validActions?.suggestedMoves || [];
+    if (hints.length === 0) {
+      toast.info('Tidak ada kombinasi yang bisa membanting kartu meja. Tekan Lewat (Pass).');
+      return;
+    }
+    const chosen = hints[hintIndex % hints.length];
+    setSelectedCodes(chosen.codes);
+    setHintIndex((i) => i + 1);
   };
 
   const handleSubmitReport = async (e) => {
@@ -345,9 +354,11 @@ export default function PokerTableView({
   };
 
   const canKickSeat = (seat) => {
-    if (!isHost || !seat || seat.userId === currentUserId) return false;
+    if (!isHost || !seat || seat.isBot || seat.userId === currentUserId) return false;
     return room?.phase === 'antar_tangan' || seat.isAway || !seat.connected;
   };
+
+  const winnerSeatIndex = table?.lastHandResult?.winnerSeat;
 
   return (
     <div className="flex min-h-[calc(100dvh-5.5rem)] lg:min-h-[calc(100dvh-6.2rem)] flex-col justify-between gap-2 overflow-hidden">
@@ -374,7 +385,7 @@ export default function PokerTableView({
             className="!h-5 !text-[10px]"
           />
           <span className="hidden sm:inline text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            Tangan #{room?.handNumber} · Blind {room?.config?.blindLevel}
+            Ronde #{room?.handNumber} · Tarif {room?.config?.baseStake || 10} chip/kartu
           </span>
         </div>
 
@@ -410,7 +421,7 @@ export default function PokerTableView({
               <HistoryRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          {otherSeats.length > 0 && (
+          {reportableHumans.length > 0 && (
             <Tooltip title="Laporkan Pemain">
               <IconButton
                 size="small"
@@ -449,162 +460,165 @@ export default function PokerTableView({
         </div>
       </div>
 
-      {/* Meja Felt Hijau Tua Tenang & Posisi 4 Kursi */}
+      {/* Meja Hijau Capsa Banting */}
       <div className="relative flex-1 rounded-3xl border-4 border-emerald-950/90 bg-gradient-to-br from-emerald-900 via-teal-950 to-slate-900 p-2.5 sm:p-4 shadow-2xl flex flex-col justify-between gap-2.5">
-        {/* Kursi Atas */}
+        {/* Lawan Atas */}
         <div className="mx-auto w-full max-w-xs">
-          <SeatCard
+          <OpponentSeatCard
             seat={relativeSeatMap.top}
             isTurn={relativeSeatMap.top?.seatIndex === table?.currentTurnSeat}
-            isDealer={relativeSeatMap.top?.seatIndex === table?.dealerSeat}
-            isSb={relativeSeatMap.top?.seatIndex === table?.sbSeat}
-            isBb={relativeSeatMap.top?.seatIndex === table?.bbSeat}
-            isWinner={winnerSeatSet.has(relativeSeatMap.top?.seatIndex)}
+            isWinner={relativeSeatMap.top?.seatIndex === winnerSeatIndex}
             reaction={seatReactions[relativeSeatMap.top?.seatIndex]}
-            fourColor={fourColorDeck}
             turnDeadlineAt={table?.turnDeadlineAt}
             turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
             serverClockOffsetMs={serverClockOffsetMs}
-            winningCardCodes={winningCardCodes}
             canKick={canKickSeat(relativeSeatMap.top)}
             onKick={onKickPlayer}
           />
         </div>
 
-        {/* Baris Tengah: Kursi Kiri + Pot & Community Cards + Kursi Kanan */}
+        {/* Baris Tengah: Kiri + Area Banting Tengah + Kanan */}
         <div className="grid grid-cols-1 sm:grid-cols-12 items-center gap-2">
           <div className="sm:col-span-3">
-            {relativeSeatMap.left && (
-              <SeatCard
-                seat={relativeSeatMap.left}
-                isTurn={relativeSeatMap.left.seatIndex === table?.currentTurnSeat}
-                isDealer={relativeSeatMap.left.seatIndex === table?.dealerSeat}
-                isSb={relativeSeatMap.left.seatIndex === table?.sbSeat}
-                isBb={relativeSeatMap.left.seatIndex === table?.bbSeat}
-                isWinner={winnerSeatSet.has(relativeSeatMap.left.seatIndex)}
-                reaction={seatReactions[relativeSeatMap.left.seatIndex]}
-                fourColor={fourColorDeck}
-                turnDeadlineAt={table?.turnDeadlineAt}
-                turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-                serverClockOffsetMs={serverClockOffsetMs}
-                winningCardCodes={winningCardCodes}
-                canKick={canKickSeat(relativeSeatMap.left)}
-                onKick={onKickPlayer}
-              />
-            )}
+            <OpponentSeatCard
+              seat={relativeSeatMap.left}
+              isTurn={relativeSeatMap.left?.seatIndex === table?.currentTurnSeat}
+              isWinner={relativeSeatMap.left?.seatIndex === winnerSeatIndex}
+              reaction={seatReactions[relativeSeatMap.left?.seatIndex]}
+              turnDeadlineAt={table?.turnDeadlineAt}
+              turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
+              serverClockOffsetMs={serverClockOffsetMs}
+              canKick={canKickSeat(relativeSeatMap.left)}
+              onKick={onKickPlayer}
+            />
           </div>
 
-          {/* Tengah: Pot & 5 Kartu Meja */}
-          <div className="sm:col-span-6 flex flex-col items-center justify-center gap-2 py-2">
-            <div className="flex flex-wrap items-center justify-center gap-1.5">
-              <span className="rounded-full bg-black/40 px-3 py-0.5 text-xs font-black uppercase tracking-wider text-amber-300 border border-amber-400/30">
-                Pot: {(table?.totalPot || 0).toLocaleString('id-ID')}
-              </span>
-              {(table?.sidePots || []).length > 1 &&
-                table.sidePots.map((sp) => (
-                  <span
-                    key={sp.potIndex}
-                    className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-emerald-100"
-                  >
-                    {sp.potIndex === 0 ? 'Main' : `Side ${sp.potIndex}`}: {sp.amount}
-                  </span>
-                ))}
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-[10px] font-bold uppercase text-white/80">
-                {room?.phase}
-              </span>
-            </div>
-
-            <div className="flex items-center justify-center gap-1.5 sm:gap-2">
-              {[0, 1, 2, 3, 4].map((idx) => {
-                const c = table?.communityCards?.[idx];
-                if (!c) {
-                  return (
-                    <div
-                      key={idx}
-                      className="h-14 w-10 sm:h-20 sm:w-14 rounded-xl border border-dashed border-white/20 bg-white/5"
+          {/* Tengah: Kartu yang sedang di Meja */}
+          <div className="sm:col-span-6 flex flex-col items-center justify-center gap-2 py-2 min-h-[120px]">
+            {table?.lastHandResult ? (
+              <div className="w-full max-w-sm rounded-2xl bg-black/55 border border-amber-400/50 p-3 text-center space-y-1.5">
+                <div className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                  {table.lastHandResult.winnerName} Menang Ronde #{table.lastHandResult.handNumber} (+
+                  {table.lastHandResult.totalWon} chip)
+                </div>
+                <div className="space-y-0.5 text-[11px] text-slate-200">
+                  {table.lastHandResult.penalties.map((pen) => (
+                    <div key={pen.seatIndex} className="flex justify-between gap-2">
+                      <span className="truncate">{pen.fullName}</span>
+                      <span className="text-rose-300 shrink-0">
+                        -{pen.penaltyAmount} chip ({pen.remainingCount} kartu ×{pen.multiplier})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : table?.currentPlay ? (
+              <div className="flex flex-col items-center gap-1.5">
+                <span className="rounded-full bg-black/45 px-3 py-0.5 text-[11px] font-bold text-amber-300 border border-amber-400/30">
+                  {table.currentPlay.label} · {table.currentPlay.fullName}
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
+                  {table.currentPlay.cards.map((c) => (
+                    <PokerCard
+                      key={c.code}
+                      card={c}
+                      size="md"
+                      fourColor={fourColorDeck}
+                      highlight={table.currentPlay.isBomb}
                     />
-                  );
-                }
-                return (
-                  <PokerCard
-                    key={c.code}
-                    card={c}
-                    size="sm"
-                    fourColor={fourColorDeck}
-                    highlight={winningCardCodes.has(c.code)}
-                  />
-                );
-              })}
-            </div>
-
-            {table?.lastHandResult && (
-              <div className="rounded-xl bg-black/50 px-3 py-1 text-center text-[11px] font-bold text-amber-200 border border-amber-400/30">
-                {table.lastHandResult.reason === 'fold'
-                  ? `Menang lewat Fold (${table.lastHandResult.totalPot} chip)`
-                  : Object.values(table.lastHandResult.revealedHands || {})
-                      .filter((_, i) => i < 2)
-                      .map((h) => `${h.fullName}: ${h.categoryName}`)
-                      .join(' · ')}
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-white/25 bg-black/25 px-4 py-3 text-center text-xs font-semibold text-emerald-100">
+                {table?.mustIncludeThreeDiamond
+                  ? 'Ronde #1 Pembuka — Banting kombinasi yang menyertakan 3♦'
+                  : 'Meja Kosong — Silakan banting 1, 2, 3, atau 5 kartu kombinasi'}
               </div>
             )}
           </div>
 
           <div className="sm:col-span-3">
-            {relativeSeatMap.right && (
-              <SeatCard
-                seat={relativeSeatMap.right}
-                isTurn={relativeSeatMap.right.seatIndex === table?.currentTurnSeat}
-                isDealer={relativeSeatMap.right.seatIndex === table?.dealerSeat}
-                isSb={relativeSeatMap.right.seatIndex === table?.sbSeat}
-                isBb={relativeSeatMap.right.seatIndex === table?.bbSeat}
-                isWinner={winnerSeatSet.has(relativeSeatMap.right.seatIndex)}
-                reaction={seatReactions[relativeSeatMap.right.seatIndex]}
-                fourColor={fourColorDeck}
-                turnDeadlineAt={table?.turnDeadlineAt}
-                turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-                serverClockOffsetMs={serverClockOffsetMs}
-                winningCardCodes={winningCardCodes}
-                canKick={canKickSeat(relativeSeatMap.right)}
-                onKick={onKickPlayer}
-              />
-            )}
+            <OpponentSeatCard
+              seat={relativeSeatMap.right}
+              isTurn={relativeSeatMap.right?.seatIndex === table?.currentTurnSeat}
+              isWinner={relativeSeatMap.right?.seatIndex === winnerSeatIndex}
+              reaction={seatReactions[relativeSeatMap.right?.seatIndex]}
+              turnDeadlineAt={table?.turnDeadlineAt}
+              turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
+              serverClockOffsetMs={serverClockOffsetMs}
+              canKick={canKickSeat(relativeSeatMap.right)}
+              onKick={onKickPlayer}
+            />
           </div>
         </div>
 
-        {/* Kursi Bawah (Pemain Sendiri) */}
-        <div className="mx-auto w-full max-w-md">
-          <SeatCard
-            seat={relativeSeatMap.bottom}
-            isSelf
-            isTurn={relativeSeatMap.bottom?.seatIndex === table?.currentTurnSeat}
-            isDealer={relativeSeatMap.bottom?.seatIndex === table?.dealerSeat}
-            isSb={relativeSeatMap.bottom?.seatIndex === table?.sbSeat}
-            isBb={relativeSeatMap.bottom?.seatIndex === table?.bbSeat}
-            isWinner={winnerSeatSet.has(relativeSeatMap.bottom?.seatIndex)}
-            reaction={seatReactions[relativeSeatMap.bottom?.seatIndex]}
-            fourColor={fourColorDeck}
-            turnDeadlineAt={table?.turnDeadlineAt}
-            turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-            serverClockOffsetMs={serverClockOffsetMs}
-            winningCardCodes={winningCardCodes}
-          />
+        {/* Area Kartu Sendiri (Bawah — 13 Kartu Interaktif) */}
+        <div className="space-y-2 pt-1">
+          {mySeat && (
+            <div className="flex items-center justify-between gap-2 px-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="truncate text-xs font-extrabold text-white">
+                  {mySeat.fullName} (Kamu)
+                </span>
+                <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[11px] font-black text-emerald-200">
+                  {mySeat.chips.toLocaleString('id-ID')} chip · {sortedMyCards.length} kartu
+                </span>
+                {mySeat.hasPassed && (
+                  <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
+                    LEWAT
+                  </span>
+                )}
+              </div>
+              {isMyTurn && table?.turnDeadlineAt && (
+                <TurnCountdownBadge
+                  turnDeadlineAt={table.turnDeadlineAt}
+                  turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
+                  serverClockOffsetMs={serverClockOffsetMs}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Deretan Kartu di Tangan (mudah dipilih di layar 360px maupun desktop) */}
+          <div
+            className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 pt-2 pb-1 px-1"
+            role="group"
+            aria-label="Kartu di tangan Anda"
+          >
+            {sortedMyCards.map((c) => (
+              <PokerCard
+                key={c.code}
+                card={c}
+                size="lg"
+                fourColor={fourColorDeck}
+                selected={selectedCodes.includes(c.code)}
+                onClick={() => handleToggleCard(c.code)}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Panel Aksi Jempol di Bawah */}
+      {/* Panel Aksi Big 2 Offline */}
       <PokerActionPanel
         validActions={validActions}
-        totalPot={table?.totalPot || 0}
         isMyTurn={isMyTurn}
-        mySeat={mySeat}
         phase={room?.phase}
         activeTurnName={activeTurnSeatObj?.fullName || ''}
+        selectedCodes={selectedCodes}
+        selectionSummary={selectionSummary}
+        sortMode={sortMode}
         actionBusy={actionBusy}
-        onAction={handleAction}
+        onPlaySelected={handlePlaySelected}
+        onPass={handlePass}
+        onHint={handleHint}
+        onClearSelection={() => setSelectedCodes([])}
+        onToggleSortMode={() => setSortMode((m) => (m === 'rank' ? 'suit' : 'rank'))}
         onSendReaction={onSendReaction}
       />
 
-      {/* Drawer Log Aksi Singkat */}
+      {/* Drawer Log Aksi */}
       <Drawer anchor="right" open={logOpen} onClose={() => setLogOpen(false)}>
         <div className="w-72 sm:w-80 p-4 space-y-3 bg-white dark:bg-navy-800 h-full overflow-y-auto">
           <h3 className="m-0 text-sm font-extrabold text-slate-900 dark:text-white">
@@ -639,7 +653,7 @@ export default function PokerTableView({
               onChange={(e) => setReportForm({ ...reportForm, reportedUserId: e.target.value })}
               required
             >
-              {otherSeats.map((s) => (
+              {reportableHumans.map((s) => (
                 <MenuItem key={s.userId} value={s.userId}>
                   {s.fullName}
                 </MenuItem>
@@ -679,8 +693,8 @@ export default function PokerTableView({
 
       <ConfirmDialog
         open={leaveConfirmOpen}
-        title="Keluar dari Meja Poker?"
-        message="Jika Anda keluar di tengah tangan berjalan, kartu Anda otomatis di-fold dan chip yang sudah di pot tetap di pot."
+        title="Keluar dari Meja Capsa Banting?"
+        message="Jika Anda keluar di tengah permainan saat mabar, kursi Anda diambil alih sementara oleh Bot agar ronde tetap berjalan adil."
         confirmText="Ya, Keluar"
         onClose={() => setLeaveConfirmOpen(false)}
         onConfirm={() => {

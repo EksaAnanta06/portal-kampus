@@ -1,9 +1,9 @@
 // FILE: server/src/poker/roomManager.js
 import { generateRoomId, defaultRandomInt } from './deck.js';
+import { chooseBotMove } from './handEvaluator.js';
 import { InMemoryRoomStore } from './roomStore.js';
 import {
   POKER_PHASES,
-  BETTING_PHASES,
   createTableState,
   addSeatToLobby,
   setPlayerReady,
@@ -18,6 +18,7 @@ import {
 const IDLE_EXPIRE_MS = 30 * 60 * 1000;
 const RECONNECT_GRACE_MS = 60 * 1000;
 const BETWEEN_HANDS_DELAY_MS = 6 * 1000;
+const DEFAULT_BOT_THINK_MS = 600;
 
 export class PokerError extends Error {
   constructor(message, code = 'POKER_ERROR', statusCode = 400) {
@@ -36,6 +37,7 @@ export class PokerRoomManager {
     maxRoomsPerUserPerHour = 10,
     reconnectGraceMs = RECONNECT_GRACE_MS,
     betweenHandsDelayMs = BETWEEN_HANDS_DELAY_MS,
+    botThinkMs = DEFAULT_BOT_THINK_MS,
     idleExpireMs = IDLE_EXPIRE_MS,
     saveHistoryFn = null,
   } = {}) {
@@ -47,15 +49,13 @@ export class PokerRoomManager {
     this.maxRoomsPerUserPerHour = maxRoomsPerUserPerHour;
     this.reconnectGraceMs = reconnectGraceMs;
     this.betweenHandsDelayMs = betweenHandsDelayMs;
+    this.botThinkMs = botThinkMs;
     this.idleExpireMs = idleExpireMs;
     this.saveHistoryFn = saveHistoryFn;
 
-    // Peta koneksi aktif global per userId (satu koneksi aktif per user)
     this.userSockets = new Map();
-    // Pelacakan room yang pernah kedaluwarsa untuk pesan ramah saat join
     this.expiredRoomIds = new Set();
 
-    // Timer interval pembersihan room kosong/idle (> 30 menit)
     this.cleanupTimer = setInterval(() => {
       this.cleanupExpiredRooms();
     }, 60 * 1000);
@@ -69,7 +69,7 @@ export class PokerRoomManager {
   setRuntimeFeatureEnabled(enabled, adminName = 'Admin') {
     if (!this.envEnabled && enabled) {
       throw new PokerError(
-        'Fitur Poker dinonaktifkan melalui environment server (FEATURE_POKER=false).',
+        'Fitur Poker Capsa Banting dinonaktifkan melalui environment server (FEATURE_POKER=false).',
         'FEATURE_ENV_DISABLED',
         400
       );
@@ -80,7 +80,7 @@ export class PokerRoomManager {
     );
 
     if (!this.runtimeEnabled) {
-      this.closeAllActiveRooms('Fitur Poker dinonaktifkan sementara oleh admin.');
+      this.closeAllActiveRooms('Fitur Poker Capsa Banting dinonaktifkan sementara oleh admin.');
     }
     return this.isFeatureEnabled();
   }
@@ -88,16 +88,13 @@ export class PokerRoomManager {
   assertEnabled() {
     if (!this.isFeatureEnabled()) {
       throw new PokerError(
-        'Fitur Poker Virtual sedang dinonaktifkan sementara oleh pengelola portal.',
+        'Fitur Poker Capsa Banting sedang dinonaktifkan sementara oleh pengelola portal.',
         'FEATURE_DISABLED',
         503
       );
     }
   }
 
-  /**
-   * Mendaftarkan socket aktif untuk seorang user (anti multi-tab: koneksi baru menggantikan yang lama).
-   */
   registerUserSocket(userId, socketConn) {
     const uid = Number(userId);
     const prev = this.userSockets.get(uid);
@@ -114,7 +111,6 @@ export class PokerRoomManager {
     }
     this.userSockets.set(uid, socketConn);
 
-    // Jika pemain sedang berada dalam masa tenggang reconnect di suatu room, pulihkan status koneksi
     const roomId = this.store.getUserRoom(uid);
     if (roomId) {
       const entry = this.store.get(roomId);
@@ -138,10 +134,8 @@ export class PokerRoomManager {
   handleSocketDisconnect(userId, socketConn) {
     const uid = Number(userId);
     const current = this.userSockets.get(uid);
-    if (current !== socketConn) {
-      // Sudah digantikan oleh tab baru -> jangan tandai offline
-      return;
-    }
+    if (current !== socketConn) return;
+
     this.userSockets.delete(uid);
 
     const roomId = this.store.getUserRoom(uid);
@@ -179,6 +173,16 @@ export class PokerRoomManager {
       this.store.deleteUserRoom(uid);
       console.info(`[POKER] Masa tenggang habis (${uid}) keluar dari room ${entry.state.roomId}`);
       this._emitEvents(entry, events);
+
+      const remainingHumans = entry.state.seats.filter((s) => !s.isBot);
+      if (remainingHumans.length === 0) {
+        if (entry.state.handNumber >= 1 && !entry.historySaved) {
+          this._persistHistory(entry);
+        }
+        this._destroyRoom(entry.state.roomId);
+        return;
+      }
+
       this._afterRoomMutation(entry);
     }, this.reconnectGraceMs);
     timer.unref?.();
@@ -198,6 +202,10 @@ export class PokerRoomManager {
     if (entry.turnTimer) {
       clearTimeout(entry.turnTimer);
       entry.turnTimer = null;
+    }
+    if (entry.botTimer) {
+      clearTimeout(entry.botTimer);
+      entry.botTimer = null;
     }
     if (entry.nextHandTimer) {
       clearTimeout(entry.nextHandTimer);
@@ -220,7 +228,7 @@ export class PokerRoomManager {
     if (entry.state.phase === POKER_PHASES.SELESAI) {
       handlePlayerLeaveOrForfeit(entry.state, userId);
       this.store.deleteUserRoom(userId);
-      if (entry.state.seats.length === 0) {
+      if (entry.state.seats.filter((s) => !s.isBot).length === 0) {
         this._destroyRoom(existingId);
       }
       return null;
@@ -242,7 +250,7 @@ export class PokerRoomManager {
 
     if (this.store.size() >= this.maxActiveRooms) {
       throw new PokerError(
-        'Kapasitas room Poker server sedang penuh. Silakan coba beberapa menit lagi.',
+        'Kapasitas room server sedang penuh. Silakan coba beberapa menit lagi.',
         'ROOM_LIMIT_REACHED',
         429
       );
@@ -280,6 +288,7 @@ export class PokerRoomManager {
     const entry = {
       state,
       turnTimer: null,
+      botTimer: null,
       nextHandTimer: null,
       disconnectTimers: new Map(),
       historySaved: false,
@@ -289,7 +298,15 @@ export class PokerRoomManager {
     this.store.setUserRoom(user.id, roomId);
     this.store.recordUserCreation(user.id);
 
-    console.info(`[POKER] Room ${roomId} dibuat oleh user #${user.id} (${user.full_name})`);
+    console.info(`[POKER] Room Capsa Banting ${roomId} dibuat oleh user #${user.id} (${user.full_name})`);
+
+    if (config.quickBotMode) {
+      const events = startNextHand(entry.state, { randomInt: this.randomInt, fillBots: true });
+      this._emitEvents(entry, events);
+      this._afterRoomMutation(entry);
+      return projectStateForViewer(entry.state, user.id);
+    }
+
     const projected = projectStateForViewer(entry.state, user.id);
     this.sendStateToUser(user.id, projected);
     return projected;
@@ -311,9 +328,17 @@ export class PokerRoomManager {
     const entry = this.store.get(roomId);
     if (!entry) {
       if (this.expiredRoomIds.has(roomId)) {
-        throw new PokerError('Room tersebut sudah kadaluarsa karena tidak aktif atau telah ditutup.', 'ROOM_EXPIRED', 410);
+        throw new PokerError(
+          'Room tersebut sudah kadaluarsa karena tidak aktif atau telah ditutup.',
+          'ROOM_EXPIRED',
+          410
+        );
       }
-      throw new PokerError('Room tidak ditemukan. Periksa kembali kode ID 6 karakter.', 'ROOM_NOT_FOUND', 404);
+      throw new PokerError(
+        'Room tidak ditemukan. Periksa kembali kode ID 6 karakter.',
+        'ROOM_NOT_FOUND',
+        404
+      );
     }
 
     if (entry.state.phase === POKER_PHASES.SELESAI) {
@@ -322,7 +347,6 @@ export class PokerRoomManager {
 
     const existingSeat = entry.state.seats.find((s) => s.userId === user.id);
     if (existingSeat) {
-      // Reconnect ke kursi sendiri saat permainan berlangsung ataupun lobby
       this._clearDisconnectTimer(entry, user.id);
       existingSeat.connected = true;
       existingSeat.disconnectedAt = null;
@@ -379,7 +403,8 @@ export class PokerRoomManager {
     const events = handlePlayerLeaveOrForfeit(entry.state, uid);
     this._emitEvents(entry, events);
 
-    if (entry.state.seats.length === 0) {
+    const remainingHumans = entry.state.seats.filter((s) => !s.isBot);
+    if (remainingHumans.length === 0) {
       if (entry.state.handNumber >= 1 && !entry.historySaved) {
         this._persistHistory(entry);
       }
@@ -415,10 +440,13 @@ export class PokerRoomManager {
     }
 
     try {
-      const events = startNextHand(entry.state, { randomInt: this.randomInt });
+      const events = startNextHand(entry.state, {
+        randomInt: this.randomInt,
+        fillBots: true,
+      });
       this._emitEvents(entry, events);
       this._afterRoomMutation(entry);
-      console.info(`[POKER] Permainan dimulai di room ${entry.state.roomId} (${entry.state.seats.length} pemain)`);
+      console.info(`[POKER] Capsa Banting dimulai di room ${entry.state.roomId} (4 kursi)`);
       return projectStateForViewer(entry.state, userId);
     } catch (err) {
       throw new PokerError(err.message, 'CANNOT_START', 400);
@@ -436,7 +464,7 @@ export class PokerRoomManager {
     }
 
     const targetSeat = entry.state.seats.find((s) => s.userId === Number(targetUserId));
-    if (!targetSeat) {
+    if (!targetSeat || targetSeat.isBot) {
       throw new PokerError('Pemain target tidak berada di room ini.', 'TARGET_NOT_FOUND', 404);
     }
 
@@ -448,7 +476,7 @@ export class PokerRoomManager {
 
     if (!canKickInPhase) {
       throw new PokerError(
-        'Pemain hanya bisa dikeluarkan saat lobby, antar tangan, atau jika berstatus away/terputus.',
+        'Pemain hanya bisa dikeluarkan saat lobby, antar ronde, atau jika berstatus away/terputus.',
         'KICK_RESTRICTED',
         409
       );
@@ -489,9 +517,10 @@ export class PokerRoomManager {
       throw new PokerError('Hanya host atau pengelola yang dapat mengakhiri room.', 'FORBIDDEN', 403);
     }
 
-    const reason = isStaff && entry.state.hostUserId !== callerUser.id
-      ? `Room ditutup paksa oleh pengelola (${callerUser.full_name}).`
-      : 'Room diakhiri oleh host.';
+    const reason =
+      isStaff && entry.state.hostUserId !== callerUser.id
+        ? `Room ditutup paksa oleh pengelola (${callerUser.full_name}).`
+        : 'Room diakhiri oleh host.';
 
     const events = forceEndRoom(entry.state, reason);
     this._clearRoomTimers(entry);
@@ -506,14 +535,14 @@ export class PokerRoomManager {
     const entry = this._requireRoomAndSeat(userId, payload.roomId);
 
     if (entry.state.handNumber !== payload.handNumber) {
-      throw new PokerError('Nomor tangan sudah berganti. Menyinkronkan ulang state.', 'STALE_HAND', 409);
+      throw new PokerError('Nomor ronde sudah berganti. Menyinkronkan ulang state.', 'STALE_HAND', 409);
     }
 
     try {
       const events = applyAction(entry.state, {
         userId,
         action: payload.action,
-        amount: payload.amount,
+        cards: payload.cards || [],
         turnToken: payload.turnToken,
       });
       this._emitEvents(entry, events);
@@ -544,6 +573,7 @@ export class PokerRoomManager {
       timestamp: Date.now(),
     };
     for (const s of entry.state.seats) {
+      if (s.isBot) continue;
       const sock = this.userSockets.get(s.userId);
       if (sock) sock.sendEvent('reaction:broadcast', payload);
     }
@@ -568,31 +598,80 @@ export class PokerRoomManager {
       clearTimeout(entry.turnTimer);
       entry.turnTimer = null;
     }
+    if (entry.botTimer) {
+      clearTimeout(entry.botTimer);
+      entry.botTimer = null;
+    }
 
     const { phase } = entry.state;
 
-    if (BETTING_PHASES.includes(phase) && entry.state.currentTurnSeat !== null) {
+    if (phase === POKER_PHASES.BERMAIN && entry.state.currentTurnSeat !== null) {
       const expectedToken = entry.state.turnToken;
-      const delay = Math.max(1000, (entry.state.turnDeadlineAt || Date.now()) - Date.now());
-      entry.turnTimer = setTimeout(() => {
-        entry.turnTimer = null;
-        if (entry.state.turnToken !== expectedToken) return;
-        const events = handleTurnTimeout(entry.state);
-        this._emitEvents(entry, events);
-        this._afterRoomMutation(entry);
-      }, delay);
-      entry.turnTimer.unref?.();
+      const activeSeat = entry.state.seats.find(
+        (s) => s.seatIndex === entry.state.currentTurnSeat
+      );
+
+      if (activeSeat?.isBot) {
+        entry.botTimer = setTimeout(() => {
+          entry.botTimer = null;
+          if (
+            entry.state.phase !== POKER_PHASES.BERMAIN ||
+            entry.state.turnToken !== expectedToken
+          ) {
+            return;
+          }
+          const must3D = Boolean(
+            entry.state.mustIncludeThreeDiamond && !entry.state.currentPlay
+          );
+          const botMove = chooseBotMove(activeSeat.holeCards, entry.state.currentPlay, {
+            mustIncludeThreeDiamond: must3D,
+          });
+          const events = botMove
+            ? applyAction(entry.state, {
+                userId: activeSeat.userId,
+                action: 'play',
+                cards: botMove.cards.map((c) => c.code),
+                turnToken: expectedToken,
+                isTimeoutAuto: false,
+              })
+            : applyAction(entry.state, {
+                userId: activeSeat.userId,
+                action: 'pass',
+                turnToken: expectedToken,
+                isTimeoutAuto: false,
+              });
+          this._emitEvents(entry, events);
+          this._afterRoomMutation(entry);
+        }, this.botThinkMs);
+        entry.botTimer.unref?.();
+      } else {
+        const delay = Math.max(1000, (entry.state.turnDeadlineAt || Date.now()) - Date.now());
+        entry.turnTimer = setTimeout(() => {
+          entry.turnTimer = null;
+          if (entry.state.turnToken !== expectedToken) return;
+          const events = handleTurnTimeout(entry.state);
+          this._emitEvents(entry, events);
+          this._afterRoomMutation(entry);
+        }, delay);
+        entry.turnTimer.unref?.();
+      }
     } else if (phase === POKER_PHASES.ANTAR_TANGAN) {
       if (!entry.nextHandTimer) {
         entry.nextHandTimer = setTimeout(() => {
           entry.nextHandTimer = null;
           if (entry.state.phase !== POKER_PHASES.ANTAR_TANGAN) return;
           try {
-            const events = startNextHand(entry.state, { randomInt: this.randomInt });
+            const events = startNextHand(entry.state, {
+              randomInt: this.randomInt,
+              fillBots: true,
+            });
             this._emitEvents(entry, events);
             this._afterRoomMutation(entry);
           } catch (err) {
-            console.error(`[POKER] Gagal memulai tangan berikutnya di ${entry.state.roomId}:`, err.message);
+            console.error(
+              `[POKER] Gagal memulai ronde berikutnya di ${entry.state.roomId}:`,
+              err.message
+            );
           }
         }, this.betweenHandsDelayMs);
         entry.nextHandTimer.unref?.();
@@ -615,8 +694,11 @@ export class PokerRoomManager {
         roomId: entry.state.roomId,
         startedAtMs: entry.state.startedAt || entry.state.createdAt,
         endedAtMs: entry.state.endedAt || Date.now(),
-        players: entry.state.seats,
-        winnerUserId: entry.state.winnerUserId,
+        players: entry.state.seats.filter((s) => !s.isBot),
+        winnerUserId:
+          entry.state.winnerUserId && entry.state.winnerUserId > 0
+            ? entry.state.winnerUserId
+            : null,
         totalHands: entry.state.handNumber,
       })
     ).catch((err) => {
@@ -635,6 +717,7 @@ export class PokerRoomManager {
         timestamp: Date.now(),
       };
       for (const s of entry.state.seats) {
+        if (s.isBot) continue;
         const sock = this.userSockets.get(s.userId);
         if (sock) sock.sendEvent('game:event', packet);
       }
@@ -644,9 +727,9 @@ export class PokerRoomManager {
   broadcastRoomState(entry) {
     const nowMs = Date.now();
     for (const s of entry.state.seats) {
+      if (s.isBot) continue;
       const sock = this.userSockets.get(s.userId);
       if (sock) {
-        // Saring state KHUSUS per penerima agar kartu tertutup lawan TIDAK PERNAH dikirim sebelum showdown
         const viewerState = projectStateForViewer(entry.state, s.userId, nowMs);
         sock.sendEvent('game:state', viewerState);
       }
@@ -665,7 +748,7 @@ export class PokerRoomManager {
     if (!entry) return;
     this._clearRoomTimers(entry);
     for (const s of entry.state.seats) {
-      if (this.store.getUserRoom(s.userId) === entry.state.roomId) {
+      if (!s.isBot && this.store.getUserRoom(s.userId) === entry.state.roomId) {
         this.store.deleteUserRoom(s.userId);
       }
     }
@@ -679,7 +762,7 @@ export class PokerRoomManager {
       this._emitEvents(entry, events);
       this.broadcastRoomState(entry);
       for (const s of entry.state.seats) {
-        this.store.deleteUserRoom(s.userId);
+        if (!s.isBot) this.store.deleteUserRoom(s.userId);
       }
       this.store.delete(entry.state.roomId);
     }
@@ -688,13 +771,19 @@ export class PokerRoomManager {
   cleanupExpiredRooms(nowMs = Date.now()) {
     for (const entry of this.store.values()) {
       const idleDuration = nowMs - entry.state.lastActivityAt;
+      const humanSeats = entry.state.seats.filter((s) => !s.isBot);
       const allDisconnected =
-        entry.state.seats.length === 0 ||
-        entry.state.seats.every((s) => !s.connected);
+        humanSeats.length === 0 || humanSeats.every((s) => !s.connected);
       const isFinishedOld =
-        entry.state.phase === POKER_PHASES.SELESAI && nowMs - (entry.state.endedAt || nowMs) > 5 * 60 * 1000;
+        entry.state.phase === POKER_PHASES.SELESAI &&
+        nowMs - (entry.state.endedAt || nowMs) > 5 * 60 * 1000;
 
-      if (isFinishedOld || idleDuration > this.idleExpireMs || (entry.state.seats.length === 0 && idleDuration > 60_000) || (allDisconnected && idleDuration > this.idleExpireMs)) {
+      if (
+        isFinishedOld ||
+        idleDuration > this.idleExpireMs ||
+        (humanSeats.length === 0 && idleDuration > 60_000) ||
+        (allDisconnected && idleDuration > this.idleExpireMs)
+      ) {
         const rid = entry.state.roomId;
         const events = forceEndRoom(entry.state, 'Room ditutup otomatis karena tidak aktif.');
         this._emitEvents(entry, events);

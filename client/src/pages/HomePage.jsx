@@ -197,7 +197,7 @@ export default function HomePage() {
                 startIcon={<CasinoRoundedIcon />}
                 className="!w-full sm:!w-auto !py-2.5 sm:!py-2 hover:!bg-white/10"
               >
-                Poker Virtual
+                Capsa Banting
               </Button>
             )}
           </div>

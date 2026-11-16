@@ -1,142 +1,65 @@
 // FILE: server/src/poker/potCalculator.js
-import { compareEvaluatedHands } from './handEvaluator.js';
 
 /**
- * Menghitung main pot dan seluruh side pot berdasarkan total kontribusi tiap kursi di satu tangan.
- * @param {Array<{ seatIndex: number, userId: number, amount: number, folded: boolean }>} contributions
- * @returns {Array<{ potIndex: number, amount: number, eligibleSeats: number[] }>}
+ * Menghitung pengali penalti gaya Big 2 Offline berdasarkan jumlah kartu tersisa di tangan pemain kalah:
+ * - 1 s/d 7 kartu  -> 1x tarif per kartu tersisa
+ * - 8 s/d 10 kartu -> 2x
+ * - 11 s/d 12 kartu -> 3x
+ * - 13 kartu (Congkak / tidak sempat turun) -> 4x
+ * Tambahan: setiap kartu angka '2' yang tersisa di tangan menggandakan penalti (+1x per kartu 2).
  */
-export const calculateSidePots = (contributions = []) => {
-  const normalized = contributions
-    .map((c) => ({
-      seatIndex: c.seatIndex,
-      userId: c.userId,
-      amount: Math.max(0, Math.floor(Number(c.amount) || 0)),
-      folded: Boolean(c.folded),
-    }))
-    .filter((c) => c.amount > 0);
+export const computeCapsaCardMultiplier = (remainingCards = []) => {
+  const count = Array.isArray(remainingCards) ? remainingCards.length : Math.max(0, Number(remainingCards) || 0);
+  if (count <= 0) return 0;
 
-  if (normalized.length === 0) return [];
+  let mult = 1;
+  if (count >= 13) mult = 4;
+  else if (count >= 11) mult = 3;
+  else if (count >= 8) mult = 2;
 
-  const levels = [...new Set(normalized.map((c) => c.amount))].sort((a, b) => a - b);
-  const rawSlices = [];
-  let prevLevel = 0;
+  const unplayedTwos = Array.isArray(remainingCards)
+    ? remainingCards.filter((c) => Number(c.rank) === 2).length
+    : 0;
 
-  for (const level of levels) {
-    const delta = level - prevLevel;
-    if (delta <= 0) continue;
-
-    let sliceAmount = 0;
-    const eligibleSeats = [];
-    for (const c of normalized) {
-      if (c.amount >= level) {
-        sliceAmount += delta;
-        if (!c.folded) {
-          eligibleSeats.push(c.seatIndex);
-        }
-      }
-    }
-
-    eligibleSeats.sort((a, b) => a - b);
-    rawSlices.push({ amount: sliceAmount, eligibleSeats });
-    prevLevel = level;
-  }
-
-  // Gabungkan lapisan pot bersebelahan bila daftar pemain yang berhak identik
-  const merged = [];
-  for (const slice of rawSlices) {
-    if (slice.amount <= 0) continue;
-    const prev = merged[merged.length - 1];
-    const sameEligible =
-      prev &&
-      prev.eligibleSeats.length === slice.eligibleSeats.length &&
-      prev.eligibleSeats.every((s, idx) => s === slice.eligibleSeats[idx]);
-
-    if (sameEligible) {
-      prev.amount += slice.amount;
-    } else {
-      merged.push({
-        potIndex: merged.length,
-        amount: slice.amount,
-        eligibleSeats: slice.eligibleSeats,
-      });
-    }
-  }
-
-  return merged.map((pot, idx) => ({ ...pot, potIndex: idx }));
+  return mult + unplayedTwos;
 };
 
 /**
- * Membagikan setiap lapisan pot (main & side pot) ke pemenang yang berhak.
- * Jika terjadi seri (split pot), chip sisa (odd chip) dibagi satu per satu searah jarum jam
- * mulai dari kursi pertama di sebelah kiri tombol dealer.
+ * Menghitung penyelesaian chip virtual di akhir satu ronde Capsa Banting.
  */
-export const distributePots = ({ pots = [], evaluatedBySeat = new Map(), dealerSeat = 0, maxSeats = 4 }) => {
-  const payoutsBySeat = new Map();
-  const potBreakdowns = [];
+export const calculateCapsaRoundSettlement = ({
+  seats = [],
+  winnerSeatIndex,
+  baseStake = 10,
+}) => {
+  const stake = Math.max(1, Number(baseStake) || 10);
+  const penalties = [];
+  let totalWon = 0;
 
-  const clockwiseDistFromLeftOfDealer = (seatIdx) =>
-    (seatIdx - dealerSeat - 1 + maxSeats * 4) % maxSeats;
+  for (const s of seats) {
+    if (!s.inHand || s.seatIndex === winnerSeatIndex || s.eliminated) continue;
+    const cardsLeft = s.holeCards || [];
+    const remainingCount = cardsLeft.length;
+    const multiplier = computeCapsaCardMultiplier(cardsLeft);
+    const rawPenalty = remainingCount * stake * Math.max(1, multiplier);
+    const actualPaid = Math.min(Math.max(0, Number(s.chips) || 0), rawPenalty);
 
-  for (const pot of pots) {
-    if (pot.amount <= 0 || !pot.eligibleSeats || pot.eligibleSeats.length === 0) {
-      continue;
-    }
-
-    let winners = [];
-    if (pot.eligibleSeats.length === 1) {
-      winners = [pot.eligibleSeats[0]];
-    } else {
-      let bestEval = null;
-      for (const seatIdx of pot.eligibleSeats) {
-        const evalHand = evaluatedBySeat.get(seatIdx);
-        if (!evalHand) continue;
-        if (!bestEval) {
-          bestEval = evalHand;
-          winners = [seatIdx];
-        } else {
-          const cmp = compareEvaluatedHands(evalHand, bestEval);
-          if (cmp > 0) {
-            bestEval = evalHand;
-            winners = [seatIdx];
-          } else if (cmp === 0) {
-            winners.push(seatIdx);
-          }
-        }
-      }
-    }
-
-    if (winners.length === 0) {
-      winners = [pot.eligibleSeats[0]];
-    }
-
-    const sortedWinners = [...winners].sort(
-      (a, b) => clockwiseDistFromLeftOfDealer(a) - clockwiseDistFromLeftOfDealer(b)
-    );
-
-    const baseShare = Math.floor(pot.amount / sortedWinners.length);
-    let oddChips = pot.amount % sortedWinners.length;
-
-    const payouts = {};
-    for (const seatIdx of sortedWinners) {
-      const bonus = oddChips > 0 ? 1 : 0;
-      if (oddChips > 0) oddChips -= 1;
-      const totalForSeat = baseShare + bonus;
-      payouts[seatIdx] = totalForSeat;
-      payoutsBySeat.set(seatIdx, (payoutsBySeat.get(seatIdx) || 0) + totalForSeat);
-    }
-
-    potBreakdowns.push({
-      potIndex: pot.potIndex,
-      amount: pot.amount,
-      eligibleSeats: [...pot.eligibleSeats],
-      winnerSeats: sortedWinners,
-      payouts,
+    totalWon += actualPaid;
+    penalties.push({
+      seatIndex: s.seatIndex,
+      userId: s.userId,
+      fullName: s.fullName,
+      remainingCount,
+      multiplier,
+      penaltyAmount: actualPaid,
+      remainingCards: cardsLeft,
     });
   }
 
   return {
-    payoutsBySeat,
-    potBreakdowns,
+    winnerSeatIndex,
+    baseStake: stake,
+    totalWon,
+    penalties,
   };
 };

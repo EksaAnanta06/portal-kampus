@@ -11,6 +11,7 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ExitToAppRoundedIcon from '@mui/icons-material/ExitToAppRounded';
 import PersonRemoveRoundedIcon from '@mui/icons-material/PersonRemoveRounded';
+import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
 import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
 import { toast } from '../../store/useThemeStore';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
@@ -30,8 +31,10 @@ export default function PokerWaitingRoom({
   const seats = table?.seats || [];
   const isHost = room?.hostUserId === currentUserId;
   const mySeat = seats.find((s) => s.userId === currentUserId);
-  const readyCount = seats.filter((s) => s.ready).length;
-  const canStart = isHost && seats.length >= 2 && readyCount >= 2;
+  const allNonHostHumansReady = seats
+    .filter((s) => !s.isBot && s.userId !== room?.hostUserId)
+    .every((s) => s.ready);
+  const canStart = isHost && allNonHostHumansReady;
 
   const inviteUrl =
     typeof window !== 'undefined' ? `${window.location.origin}/poker/${roomId}` : `/poker/${roomId}`;
@@ -49,8 +52,8 @@ export default function PokerWaitingRoom({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: `Gabung Meja Poker PASIM (${roomId})`,
-          text: `Ayo main poker chip virtual hiburan di Room ${roomId}`,
+          title: `Gabung Meja Capsa Banting PASIM (${roomId})`,
+          text: `Ayo main Capsa Banting (Big 2) chip virtual hiburan di Room ${roomId}`,
           url: inviteUrl,
         });
         return;
@@ -58,24 +61,23 @@ export default function PokerWaitingRoom({
       await navigator.clipboard.writeText(inviteUrl);
       toast.success('Link ajakan room disalin ke clipboard.');
     } catch {
-      // Pengguna membatalkan dialog share
+      // Pengguna membatalkan share
     }
   };
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <Alert severity="info" className="!rounded-2xl !text-xs sm:!text-sm">
-        <strong>Game hiburan dengan chip virtual. Tidak ada uang asli.</strong> Chip di room ini tidak dibawa keluar room.
+        <strong>Game hiburan dengan chip virtual. Tidak ada uang asli.</strong> Kursi yang kosong saat permainan dimulai akan otomatis diisi oleh Bot AI (4 kursi × 13 kartu).
       </Alert>
 
       <div className="card-surface p-4 sm:p-6 space-y-5">
-        {/* Header ID Room & Kontrol Salin/Bagikan */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <CasinoRoundedIcon className="text-emerald-600 dark:text-emerald-400" />
               <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Ruang Tunggu Meja
+                Ruang Tunggu Capsa Banting
               </span>
               <Chip
                 size="small"
@@ -112,12 +114,11 @@ export default function PokerWaitingRoom({
 
           <div className="flex flex-wrap gap-1.5 text-xs">
             <Chip size="small" label={`Chip Awal: ${room?.config?.startingChips}`} variant="outlined" />
-            <Chip size="small" label={`Blind: ${room?.config?.blindLevel}`} variant="outlined" />
+            <Chip size="small" label={`Tarif: ${room?.config?.baseStake || 10}/kartu`} variant="outlined" />
             <Chip size="small" label={`Timer: ${room?.config?.turnTimeoutSec}d`} variant="outlined" />
           </div>
         </div>
 
-        {/* Daftar 4 Kursi Meja */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {[0, 1, 2, 3].map((slot) => {
             const seat = seats.find((s) => s.seatIndex === slot);
@@ -127,8 +128,11 @@ export default function PokerWaitingRoom({
                   key={slot}
                   className="flex items-center justify-between rounded-2xl border border-dashed border-slate-200 p-3.5 text-xs text-slate-400 dark:border-slate-700"
                 >
-                  <span>Kursi #{slot + 1} · Kosong</span>
-                  <span className="text-[11px]">Menunggu pemain...</span>
+                  <span className="inline-flex items-center gap-1.5">
+                    <SmartToyRoundedIcon fontSize="small" />
+                    Kursi #{slot + 1} · Kosong
+                  </span>
+                  <span className="text-[11px]">Diisi Bot saat mulai</span>
                 </div>
               );
             }
@@ -189,7 +193,6 @@ export default function PokerWaitingRoom({
           })}
         </div>
 
-        {/* Tombol Aksi Lobby */}
         <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 pt-2">
           <Button
             variant="outlined"
@@ -225,7 +228,7 @@ export default function PokerWaitingRoom({
                 disabled={!canStart || actionBusy}
                 className="!min-h-[44px]"
               >
-                Mulai Permainan ({readyCount}/{seats.length} Siap)
+                Mulai Main ({seats.length}/4 Pemain · Sisa Bot)
               </Button>
             )}
           </div>

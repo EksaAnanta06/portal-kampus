@@ -28,6 +28,7 @@ export const roomCreateSchema = z.object({
       message: 'Timer giliran harus 15, 30, atau 45 detik.',
     })
     .default(30),
+  quickBotMode: z.boolean().optional().default(false),
 });
 
 export const roomJoinSchema = z.object({
@@ -56,8 +57,8 @@ export const gameActionSchema = z.object({
   roomId: roomIdSchema,
   handNumber: z.coerce.number().int().nonnegative(),
   turnToken: z.string().trim().min(1, 'Token giliran wajib ada.'),
-  action: z.enum(['fold', 'check', 'call', 'bet', 'raise', 'all_in']),
-  amount: z.coerce.number().finite().nonnegative().optional(),
+  action: z.enum(['play', 'pass']),
+  cards: z.array(z.string().trim().min(2).max(3)).max(5).optional(),
 });
 
 export const gameSyncSchema = z.object({
