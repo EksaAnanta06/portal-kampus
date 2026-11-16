@@ -38,6 +38,8 @@ const loadFocusTimerPage = () => import('./pages/focus/FocusTimerPage');
 const FocusTimerPage = lazy(loadFocusTimerPage);
 const loadStudyPlannerPage = () => import('./pages/focus/StudyPlannerPage');
 const StudyPlannerPage = lazy(loadStudyPlannerPage);
+const PokerLobbyPage = lazy(() => import('./pages/poker/PokerLobbyPage'));
+const PokerRoomPage = lazy(() => import('./pages/poker/PokerRoomPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export function PageLoader() {
@@ -111,6 +113,10 @@ export default function App() {
                 <Route path="tugas" element={<StudyPlannerPage />} />
                 <Route path="fokus" element={<FocusTimerPage />} />
               </Route>
+
+              {/* Hiburan Kampus: Poker Chip Virtual (Tanpa Uang Asli) */}
+              <Route path="poker" element={<PokerLobbyPage />} />
+              <Route path="poker/:roomId" element={<PokerRoomPage />} />
             </Route>
           </Route>
 

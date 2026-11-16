@@ -43,7 +43,68 @@ const REQUIRED_CORE_TABLES = [
   'fokus_pengaturan',
   'pengingat',
   'push_subscriptions',
+  'poker_riwayat',
+  'poker_laporan',
 ];
+
+let pokerSchemaInitialized = false;
+let pokerSchemaPromise = null;
+
+/**
+ * Memastikan tabel fitur Poker Virtual Hiburan (tanpa uang asli/saldo permanen) tersedia.
+ */
+export const ensurePokerSchema = async () => {
+  if (pokerSchemaInitialized) return;
+  if (pokerSchemaPromise) return pokerSchemaPromise;
+
+  pokerSchemaPromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS poker_riwayat (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        room_id CHAR(6) NOT NULL,
+        mulai_at DATETIME NOT NULL,
+        selesai_at DATETIME NOT NULL,
+        pemain JSON NOT NULL,
+        pemenang_user_id INT UNSIGNED NULL,
+        jumlah_tangan INT UNSIGNED NOT NULL DEFAULT 1,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_pri_winner
+          FOREIGN KEY (pemenang_user_id) REFERENCES users(id)
+          ON DELETE SET NULL,
+        INDEX idx_pri_selesai (selesai_at DESC),
+        INDEX idx_pri_winner (pemenang_user_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS poker_laporan (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        room_id CHAR(6) NOT NULL,
+        reporter_id INT UNSIGNED NOT NULL,
+        reported_user_id INT UNSIGNED NOT NULL,
+        reason ENUM('harassment', 'inappropriate', 'spam', 'cheating', 'other') NOT NULL DEFAULT 'other',
+        description VARCHAR(500) NULL,
+        status ENUM('open', 'resolved', 'dismissed') NOT NULL DEFAULT 'open',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_plap_reporter
+          FOREIGN KEY (reporter_id) REFERENCES users(id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_plap_reported
+          FOREIGN KEY (reported_user_id) REFERENCES users(id)
+          ON DELETE CASCADE,
+        INDEX idx_plap_status (status, created_at DESC),
+        INDEX idx_plap_room (room_id)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+
+    pokerSchemaInitialized = true;
+  })().catch((err) => {
+    pokerSchemaPromise = null;
+    throw err;
+  });
+
+  return pokerSchemaPromise;
+};
 
 let focusSchemaInitialized = false;
 let focusSchemaPromise = null;
@@ -356,6 +417,12 @@ export const testDbConnection = async () => {
     await ensureFocusPlannerSchema();
   } catch (err) {
     console.warn('⚠️ [DB] Gagal menginisialisasi skema tabel fokus/tugas:', err.message);
+  }
+
+  try {
+    await ensurePokerSchema();
+  } catch (err) {
+    console.warn('⚠️ [DB] Gagal menginisialisasi skema tabel poker:', err.message);
   }
 
   await verifyDatabaseSchema();

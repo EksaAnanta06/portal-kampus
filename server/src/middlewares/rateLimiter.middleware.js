@@ -65,3 +65,16 @@ export const pushSubscriptionLimiter = rateLimit({
     meta: null,
   },
 });
+
+export const pokerReportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 menit
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Terlalu banyak laporan dalam waktu singkat. Coba beberapa saat lagi.',
+    data: null,
+    meta: null,
+  },
+});

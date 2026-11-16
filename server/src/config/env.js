@@ -87,4 +87,10 @@ export const env = {
     privateKey: process.env.VAPID_PRIVATE_KEY || '',
     subject: process.env.VAPID_SUBJECT || 'mailto:admin@pasim.ac.id',
   },
+
+  poker: {
+    enabled: process.env.FEATURE_POKER !== 'false',
+    maxActiveRooms: Number(process.env.POKER_MAX_ACTIVE_ROOMS) || 50,
+    maxRoomsPerUserPerHour: Number(process.env.POKER_MAX_ROOMS_PER_USER_HOUR) || 10,
+  },
 };

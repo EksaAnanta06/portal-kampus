@@ -30,6 +30,7 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import HowToRegRoundedIcon from '@mui/icons-material/HowToRegRounded';
 import TimerRoundedIcon from '@mui/icons-material/TimerRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
+import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
 import { BrandLogo } from '../components/common/BrandLogo';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
 import GlobalSearchModal from '../components/common/GlobalSearchModal';
@@ -38,8 +39,10 @@ import MiniFocusTimerBar from '../components/focus/MiniFocusTimerBar';
 import FocusCompletionDialog from '../components/focus/FocusCompletionDialog';
 import useAuthStore, { selectIsStaff } from '../store/useAuthStore';
 import useThemeStore, { toast } from '../store/useThemeStore';
+import usePokerStore from '../store/usePokerStore';
 import { getOptimizedImageUrl } from '../hooks/useCloudinaryUrl';
 import { ASSIGNMENT_HUB_ROLES, ROLE_LABELS, getInitials } from '../utils/constants';
+import { FEATURE_POKER_ENV_ENABLED } from '../api/poker.api';
 
 const navLinkClass = (accent = 'pasim') => ({ isActive }) =>
   `flex items-center gap-3.5 rounded-xl px-4 py-3 text-sm font-semibold transition duration-150 ${
@@ -57,6 +60,7 @@ export default function MainLayout() {
   const isLoggedIn = useAuthStore((s) => Boolean(s.accessToken && s.user));
   const isStaff = useAuthStore(selectIsStaff);
   const canAccessFocusPlanner = Boolean(isLoggedIn && ASSIGNMENT_HUB_ROLES.includes(user?.role));
+  const pokerEnabled = usePokerStore((s) => s.featureEnabled) && FEATURE_POKER_ENV_ENABLED;
   const logout = useAuthStore((s) => s.logout);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -224,6 +228,22 @@ export default function MainLayout() {
             <AdminPanelSettingsRoundedIcon fontSize="small" />
             <span>Panel Pengelola</span>
           </NavLink>
+        )}
+
+        {isLoggedIn && pokerEnabled && (
+          <div className="pt-3 mt-1 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+            <span className="px-2 text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+              Hiburan / Game
+            </span>
+            <NavLink
+              to="/poker"
+              className={navLinkClass('emerald')}
+              onClick={onClose}
+            >
+              <CasinoRoundedIcon fontSize="small" />
+              <span>Poker Virtual</span>
+            </NavLink>
+          </div>
         )}
       </nav>
 

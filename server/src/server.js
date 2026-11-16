@@ -4,6 +4,8 @@ import { env } from './config/env.js';
 import { testDbConnection, pool } from './config/db.js';
 import { initCronJobs, stopCronJobs } from './utils/cronJobs.js';
 import { registerGracefulShutdown } from './utils/gracefulShutdown.js';
+import { attachPokerSocketServer } from './poker/pokerSocketServer.js';
+import { getPokerRoomManager } from './poker/singleton.js';
 
 const startServer = async () => {
   try {
@@ -16,9 +18,17 @@ const startServer = async () => {
       console.log(`🚀 [SERVER] Portal Kampus UNAS PASIM berjalan di http://localhost:${env.port}/api/v1`);
     });
 
+    const pokerSocket = attachPokerSocketServer({
+      httpServer: server,
+      roomManager: getPokerRoomManager(),
+    });
+
     registerGracefulShutdown({
       server,
-      stopBackgroundJobs: stopCronJobs,
+      stopBackgroundJobs: () => {
+        stopCronJobs();
+        pokerSocket.shutdown();
+      },
       closeDatabase: () => pool.end(),
     });
   } catch (error) {

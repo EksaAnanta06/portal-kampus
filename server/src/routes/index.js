@@ -8,6 +8,7 @@ import photoRoutes from './photo.routes.js';
 import campusRoutes from './campus.routes.js';
 import materialRoutes from './material.routes.js';
 import focusRoutes from './focus.routes.js';
+import pokerRoutes from './poker.routes.js';
 
 const router = Router();
 
@@ -28,5 +29,6 @@ router.use('/photos', photoRoutes);
 router.use('/campus', campusRoutes);
 router.use('/materials', materialRoutes);
 router.use('/focus', focusRoutes);
+router.use('/poker', pokerRoutes);
 
 export default router;

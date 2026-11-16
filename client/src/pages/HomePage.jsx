@@ -15,16 +15,19 @@ import LocationOnRoundedIcon from '@mui/icons-material/LocationOnRounded';
 import CampaignRoundedIcon from '@mui/icons-material/CampaignRounded';
 import CollectionsBookmarkRoundedIcon from '@mui/icons-material/CollectionsBookmarkRounded';
 import CloudUploadRoundedIcon from '@mui/icons-material/CloudUploadRounded';
+import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import VerifiedUserRoundedIcon from '@mui/icons-material/VerifiedUserRounded';
 import FavoriteRoundedIcon from '@mui/icons-material/FavoriteRounded';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import { campusApi } from '../api/campus.api';
 import { galleryApi } from '../api/gallery.api';
+import { FEATURE_POKER_ENV_ENABLED } from '../api/poker.api';
 import PhotoMasonryGrid from '../components/gallery/PhotoMasonryGrid';
 import AngkatanCard from '../components/gallery/AngkatanCard';
 import NextSessionWidget from '../components/focus/NextSessionWidget';
 import useAuthStore from '../store/useAuthStore';
+import usePokerStore from '../store/usePokerStore';
 import { CATEGORY_LABELS } from '../utils/constants';
 import { formatShortDate, formatEventRange, getDateParts } from '../utils/formatDate';
 import { getOptimizedImageUrl } from '../hooks/useCloudinaryUrl';
@@ -37,6 +40,7 @@ const EventDetailModal = lazy(() => import('../components/campus/EventDetailModa
 export default function HomePage() {
   const user = useAuthStore((s) => s.user);
   const isLoggedIn = useAuthStore((s) => Boolean(s.accessToken && s.user));
+  const pokerEnabled = usePokerStore((s) => s.featureEnabled) && FEATURE_POKER_ENV_ENABLED;
 
   const [data, setData] = useState({
     stats: null,
@@ -183,6 +187,19 @@ export default function HomePage() {
             >
               Semua Angkatan
             </Button>
+            {isLoggedIn && pokerEnabled && (
+              <Button
+                component={Link}
+                to="/poker"
+                variant="outlined"
+                size="large"
+                sx={{ color: '#fff', borderColor: 'rgba(255,255,255,0.4)' }}
+                startIcon={<CasinoRoundedIcon />}
+                className="!w-full sm:!w-auto !py-2.5 sm:!py-2 hover:!bg-white/10"
+              >
+                Poker Virtual
+              </Button>
+            )}
           </div>
         </div>
 
