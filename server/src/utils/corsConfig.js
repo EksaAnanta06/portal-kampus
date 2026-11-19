@@ -22,7 +22,13 @@ const stripTrailingSlash = (value = '') => String(value).trim().replace(/\/+$/, 
 const parseUrlSafe = (value) => {
   try {
     const parsed = new URL(stripTrailingSlash(value));
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    if (
+      parsed.protocol !== 'http:' &&
+      parsed.protocol !== 'https:' &&
+      parsed.protocol !== 'capacitor:'
+    ) {
+      return null;
+    }
     if (parsed.username || parsed.password) return null;
     return parsed;
   } catch {
@@ -79,6 +85,8 @@ export const buildAllowedOriginEntries = (clientUrl = '', defaultOrigins = []) =
     ])
   );
 
+const NATIVE_CAPACITOR_ORIGINS = ['https://localhost', 'capacitor://localhost'];
+
 export const isOriginAllowed = (
   origin,
   { allowedEntries = [], allowDevTunnels = false } = {}
@@ -89,6 +97,11 @@ export const isOriginAllowed = (
   if (!originUrl) return false;
 
   const normalizedOrigin = originUrl.origin;
+
+  // Origin klien native Capacitor Android & iOS diizinkan secara eksplisit
+  if (NATIVE_CAPACITOR_ORIGINS.includes(normalizedOrigin)) {
+    return true;
+  }
 
   for (const entry of allowedEntries) {
     if (entry === normalizedOrigin) return true;

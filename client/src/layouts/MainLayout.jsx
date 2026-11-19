@@ -279,6 +279,25 @@ export default function MainLayout() {
     </div>
   );
 
+  const isPokerRoute =
+    location.pathname === '/poker' || location.pathname.startsWith('/poker/');
+
+  if (isPokerRoute) {
+    return (
+      <main className="h-dvh w-full max-w-full overflow-hidden p-0 m-0 bg-[#0b1114]">
+        <Suspense
+          fallback={
+            <div className="flex h-dvh w-full items-center justify-center bg-[#0b1114]">
+              <CircularProgress color="success" />
+            </div>
+          }
+        >
+          <Outlet />
+        </Suspense>
+      </main>
+    );
+  }
+
   return (
     <div className="flex min-h-dvh overflow-x-clip bg-slate-50 dark:bg-navy">
       {/* 1. SIDEBAR DESKTOP (Dashboard Sidebar) */}

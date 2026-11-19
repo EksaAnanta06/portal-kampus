@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Koneksi Terputus - Portal Kampus UNAS PASIM</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background-color: #0f172a;
+      color: #f8fafc;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 1.5rem;
+      text-align: center;
+    }
+    .card {
+      max-width: 420px;
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 1.25rem;
+      padding: 2.25rem 1.75rem;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+    }
+    .logo {
+      width: 72px;
+      height: 72px;
+      margin-bottom: 1.25rem;
+      border-radius: 50%;
+      background: #0f172a;
+      padding: 0.5rem;
+      border: 2px solid #8b1e24;
+    }
+    .icon {
+      font-size: 2.5rem;
+      margin-bottom: 0.75rem;
+    }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+    p {
+      font-size: 0.925rem;
+      color: #94a3b8;
+      line-height: 1.55;
+      margin-bottom: 1.75rem;
+    }
+    .btn {
+      display: inline-block;
+      width: 100%;
+      padding: 0.75rem 1.5rem;
+      background: #8b1e24;
+      color: #ffffff;
+      font-size: 0.95rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 0.75rem;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn:hover {
+      background: #a3222a;
+    }
+    .btn:active {
+      transform: scale(0.98);
+    }
+    .status {
+      margin-top: 1.25rem;
+      font-size: 0.75rem;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <img src="/logo-pasim.png" alt="Logo UNAS PASIM" class="logo" />
+    <div class="icon">📡</div>
+    <h1>Kamu Sedang Offline</h1>
+    <p>
+      Koneksi internet Anda terputus. Halaman atau fitur yang belum tersimpan dalam memori perangkat memerlukan koneksi aktif untuk diakses.
+    </p>
+    <button type="button" class="btn" onclick="window.location.reload()">
+      Muat Ulang Halaman
+    </button>
+    <div class="status">
+      Portal Kampus Universitas Nasional Pasim Bandung
+    </div>
+  </div>
+</body>
+</html>

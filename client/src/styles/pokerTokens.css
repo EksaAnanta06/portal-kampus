@@ -1,0 +1,465 @@
+/* FILE: client/src/styles/pokerTokens.css */
+/* Fondasi Desain Minimalis Mobile Poker: Flat, Maks 3 Warna Aktif, 3 Ukuran Font >= 12px, Nol Scroll */
+
+.poker-stage,
+[data-poker-theme='emerald_royal'] {
+  /* 1. Netral (Permukaan datar & teks kontras tinggi WCAG AA) */
+  --poker-bg: #0b1114;
+  --poker-surface: #131d22;
+  --poker-surface-elevated: #1a282f;
+  --poker-border: #263842;
+  --poker-text: #f1f5f9;
+  --poker-text-muted: #94a3b8;
+
+  /* 2. Satu Warna Aksen Utama */
+  --poker-accent: #10b981;
+  --poker-accent-soft: rgba(16, 185, 129, 0.16);
+
+  /* 3. Satu Warna Status (Giliran / Sorotan) */
+  --poker-status: #f59e0b;
+  --poker-status-soft: rgba(245, 158, 11, 0.18);
+  --poker-danger: #ef4444;
+
+  /* Tipografi: Hanya 3 Ukuran (Tidak ada teks di bawah 12px / 0.75rem) */
+  --poker-font-sm: clamp(0.75rem, 1.8vw, 0.8125rem); /* 12px - 13px */
+  --poker-font-md: clamp(0.875rem, 2.2vw, 1rem);     /* 14px - 16px */
+  --poker-font-lg: clamp(1.25rem, 4vw, 1.75rem);     /* 20px - 28px */
+
+  /* Spacing & Radius Relatif */
+  --poker-space-xs: clamp(0.25rem, 0.8vmin, 0.375rem);
+  --poker-space-sm: clamp(0.375rem, 1.2vmin, 0.625rem);
+  --poker-space-md: clamp(0.5rem, 1.8vmin, 0.875rem);
+  --poker-radius-sm: 8px;
+  --poker-radius-md: 12px;
+  --poker-radius-lg: 16px;
+}
+
+[data-poker-theme='midnight_sapphire'] {
+  --poker-bg: #090f1a;
+  --poker-surface: #111b2e;
+  --poker-surface-elevated: #192742;
+  --poker-border: #263859;
+  --poker-accent: #38bdf8;
+  --poker-accent-soft: rgba(56, 189, 248, 0.16);
+}
+
+[data-poker-theme='crimson_velvet'] {
+  --poker-bg: #140b0e;
+  --poker-surface: #211217;
+  --poker-surface-elevated: #2e1a21;
+  --poker-border: #452630;
+  --poker-accent: #10b981;
+  --poker-accent-soft: rgba(16, 185, 129, 0.16);
+}
+
+/* Kunci Scroll Khusus Rute Poker (Dibersihkan otomatis saat keluar dari /poker*) */
+html.poker-route-lock,
+body.poker-route-lock {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  height: 100vh;
+  height: 100dvh;
+  width: 100%;
+}
+
+/* Aturan Imersif Fullscreen API (Chrome Android, Safari & Desktop) */
+:fullscreen,
+:-webkit-full-screen,
+:-moz-full-screen,
+:-ms-fullscreen {
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: 100vw !important;
+  max-height: 100dvh !important;
+  margin: 0 !important;
+  overflow: hidden !important;
+  background-color: #04181d !important;
+}
+
+:fullscreen .poker-viewport-shell,
+:-webkit-full-screen .poker-viewport-shell {
+  height: 100vh !important;
+  height: 100dvh !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+}
+
+/* Shell Nol-Scroll 100dvh + Safe-Area */
+.poker-viewport-shell {
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  width: 100%;
+  max-width: 100vw;
+  overflow: hidden;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+  box-sizing: border-box;
+  background-color: var(--poker-bg);
+  color: var(--poker-text);
+  padding-top: max(0.375rem, env(safe-area-inset-top));
+  padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+  padding-left: max(0.5rem, env(safe-area-inset-left));
+  padding-right: max(0.5rem, env(safe-area-inset-right));
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.poker-viewport-shell button,
+.poker-viewport-shell input,
+.poker-viewport-shell [role='button'] {
+  touch-action: manipulation;
+}
+
+/* Utilitas Tipografi 3 Ukuran & Tabular Numerals */
+.poker-text-sm {
+  font-size: var(--poker-font-sm);
+  line-height: 1.25;
+}
+
+.poker-text-md {
+  font-size: var(--poker-font-md);
+  line-height: 1.3;
+}
+
+.poker-text-lg {
+  font-size: var(--poker-font-lg);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.poker-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Permukaan Flat (Tanpa Gradien Berlapis, Tanpa Noise SVG, Tanpa Bayangan Berat) */
+.poker-flat-panel {
+  background-color: var(--poker-surface);
+  border: 1px solid var(--poker-border);
+  border-radius: var(--poker-radius-md);
+}
+
+.poker-flat-elevated {
+  background-color: var(--poker-surface-elevated);
+  border: 1px solid var(--poker-border);
+  border-radius: var(--poker-radius-md);
+}
+
+/* Susunan Vertikal 5 Zona Tetap (Portrait Mobile — TIDAK TERSENTUH oleh aturan Landscape) */
+/* Zona 1: TopBar <=8% | Zona 2: Lawan ~22% | Zona 3: Tengah ~28% | Zona 4: Pemain ~22% | Zona 5: Aksi ~20% */
+.poker-table-zones {
+  display: grid;
+  grid-template-rows: minmax(36px, 8%) minmax(0, 22%) minmax(0, 28%) minmax(0, 22%) minmax(48px, 20%);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  gap: var(--poker-space-xs);
+  overflow: hidden;
+}
+
+/* ============================================================================
+ * LANDSCAPE MOBILE CARD SIZING & LAYOUT (Dihitung dari TINGGI Viewport / dvh, Rasio 5:7)
+ * - Hole cards: ~23-25% tinggi viewport (844x390 -> ~94x67px, 640x360 -> ~85x61px, 568x320 -> ~75x54px)
+ * - Community cards: ~20-21.5% tinggi viewport (844x390 -> ~82x59px, 640x360 -> ~74x53px, 568x320 -> ~64x46px)
+ * - Opponent cards: ~62% dari ukuran kartu sendiri, terpisah jelas dari nama & chip
+ * ============================================================================ */
+.poker-table-zones.is-landscape {
+  --ls-action-w: clamp(148px, 22vw, 176px);
+  --ls-hole-card-h: clamp(80px, 26dvh, 104px);
+  --ls-hole-card-w: calc(var(--ls-hole-card-h) * 5 / 7);
+  --ls-comm-card-h: clamp(68px, 22.5dvh, 92px);
+  --ls-comm-card-w: calc(var(--ls-comm-card-h) * 5 / 7);
+  --ls-opp-card-h: calc(var(--ls-hole-card-h) * 0.62);
+  --ls-opp-card-w: calc(var(--ls-opp-card-h) * 5 / 7);
+  --ls-hole-gap: clamp(16px, 2.8vw, 24px);
+  --ls-comm-gap: clamp(10px, 1.8vw, 16px);
+  --ls-card-rank-fs: clamp(14px, 4dvh, 18px);
+  --ls-card-pip-sm: clamp(12px, 3.2dvh, 16px);
+  --ls-card-pip-lg: clamp(22px, 6dvh, 30px);
+
+  grid-template-columns: minmax(0, calc(100% - var(--ls-action-w) - var(--poker-space-xs))) var(--ls-action-w);
+  grid-template-rows: 44px minmax(54px, 21%) minmax(0, 38%) minmax(0, 41%);
+  gap: var(--poker-space-xs);
+}
+
+.poker-table-zones.is-landscape > :not(.poker-zone-action) {
+  grid-column: 1;
+}
+
+.poker-table-zones.is-landscape > .poker-zone-action {
+  grid-column: 2;
+  grid-row: 1 / -1;
+}
+
+/* Utilitas Kartu Berbasis Tinggi Viewport Khusus di Landscape */
+.poker-table-zones.is-landscape .poker-ls-hole-card {
+  height: var(--ls-hole-card-h) !important;
+  width: var(--ls-hole-card-w) !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-hole-card.is-multi-hand {
+  height: clamp(64px, 21dvh, 80px) !important;
+  width: calc(clamp(64px, 21dvh, 80px) * 5 / 7) !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-comm-card {
+  height: var(--ls-comm-card-h) !important;
+  width: var(--ls-comm-card-w) !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-opp-card {
+  height: var(--ls-opp-card-h) !important;
+  width: var(--ls-opp-card-w) !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-card-rank {
+  font-size: var(--ls-card-rank-fs) !important;
+  line-height: 1 !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-pip-corner {
+  width: var(--ls-card-pip-sm) !important;
+  height: var(--ls-card-pip-sm) !important;
+}
+
+.poker-table-zones.is-landscape .poker-ls-pip-center {
+  width: var(--ls-card-pip-lg) !important;
+  height: var(--ls-card-pip-lg) !important;
+}
+
+@media (max-width: 340px) and (orientation: portrait) {
+  .poker-stage {
+    --poker-space-xs: 0.1875rem;
+    --poker-space-sm: 0.25rem;
+  }
+  .poker-viewport-shell {
+    padding-top: max(0.25rem, env(safe-area-inset-top));
+    padding-bottom: max(0.25rem, env(safe-area-inset-bottom));
+    padding-left: max(0.25rem, env(safe-area-inset-left));
+    padding-right: max(0.25rem, env(safe-area-inset-right));
+  }
+}
+
+@media (max-height: 500px) and (orientation: landscape) {
+  .poker-stage {
+    --poker-space-xs: 0.1875rem;
+  }
+  .poker-viewport-shell {
+    padding-top: max(0.2rem, env(safe-area-inset-top));
+    padding-bottom: max(0.2rem, env(safe-area-inset-bottom));
+    padding-left: max(0.35rem, env(safe-area-inset-left));
+    padding-right: max(0.35rem, env(safe-area-inset-right));
+  }
+}
+
+/* Urutan Prioritas Kompresi di Landscape Sangat Kecil (contoh 568x320):
+ * 1. Kecilkan jarak & padding terlebih dahulu
+ * 2. Kecilkan kartu lawan sedikit (~60%)
+ * 3. Ukuran kartu sendiri paling terakhir (tetap >= 22.5% tinggi layar) */
+@media (max-height: 340px) and (orientation: landscape) {
+  .poker-table-zones.is-landscape {
+    --ls-action-w: 144px;
+    --ls-hole-card-h: clamp(74px, 24dvh, 80px);
+    --ls-comm-card-h: clamp(64px, 21dvh, 70px);
+    --ls-opp-card-h: calc(var(--ls-hole-card-h) * 0.6);
+    --ls-hole-gap: 14px;
+    --ls-comm-gap: 10px;
+    grid-template-rows: 44px minmax(46px, 20%) minmax(0, 38%) minmax(0, 42%);
+  }
+}
+
+/* Card Selection & Lift (Subtle & Controlled)
+ * - Di Portrait: angkat kartu secara halus (-5px)
+ * - Di Landscape: angkat kartu sangat terukur (-3px) agar tidak melayang berlebihan,
+ *   tidak menabrak Zona 3 (kartu tengah), dan TIDAK menutupi kartu lain di tangan.
+ * - Tanpa z-index buatan agar urutan tumpukan kartu (kiri ke kanan) tetap natural dan sudut rank/suit tidak tertutup.
+ */
+.poker-card-selected {
+  transform: translateY(-5px);
+}
+
+.poker-card-highlight {
+  transform: translateY(-3px);
+}
+
+.poker-table-zones.is-landscape .poker-card-selected,
+.poker-ls-hole-card.poker-card-selected {
+  transform: translateY(-3px) !important;
+}
+
+.poker-table-zones.is-landscape .poker-card-highlight,
+.poker-ls-hole-card.poker-card-highlight {
+  transform: translateY(-2px) !important;
+}
+
+/* 3D Card Flip & Gerak Fungsional Singkat (<= 250ms, Hanya transform & opacity) */
+.poker-perspective {
+  perspective: 800px;
+}
+
+.poker-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.poker-flip-inner.is-facedown {
+  transform: rotateY(180deg);
+}
+
+.poker-flip-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.poker-flip-back {
+  transform: rotateY(180deg);
+}
+
+@keyframes pokerDealSlideIn {
+  0% {
+    opacity: 0;
+    transform: translate3d(var(--deal-from-x, 0px), var(--deal-from-y, -48px), 0) scale(0.82);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.poker-anim-deal {
+  animation: pokerDealSlideIn 220ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--deal-delay-ms, 0ms);
+}
+
+@keyframes pokerCommunityReveal {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+.poker-anim-community {
+  animation: pokerCommunityReveal 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: var(--comm-delay-ms, 0ms);
+}
+
+@keyframes pokerPageFadeSlide {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.poker-page-transition {
+  animation: pokerPageFadeSlide 180ms ease-out both;
+}
+
+/* Animasi Lemparan Kartu Realistis (Parabolic Arc & 3D Flip) */
+@keyframes pokerArcThrow {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) rotate(var(--rot-init, 25deg)) scale(1);
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate3d(calc((var(--target-x) - 50%) * 0.5), calc((var(--target-y) - 50%) * 0.5 + var(--arc-y, -28px)), 0) rotate(calc(var(--rot-init) * 0.35)) scale(1.12);
+    box-shadow: 0 16px 28px rgba(0, 0, 0, 0.45);
+  }
+  85% {
+    transform: translate3d(calc(var(--target-x) - 50%), calc(var(--target-y) - 50%), 0) rotate(var(--rot-settle, 3deg)) scale(0.98);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(calc(var(--target-x) - 50%), calc(var(--target-y) - 50%), 0) rotate(var(--rot-settle, 3deg)) scale(1);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  }
+}
+
+@keyframes pokerCard3DFlip {
+  0% {
+    transform: rotateY(0deg);
+  }
+  100% {
+    transform: rotateY(180deg);
+  }
+}
+
+@keyframes pokerChipThrow {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.8) rotate(-15deg);
+  }
+  20% {
+    opacity: 1;
+  }
+  60% {
+    transform: translate3d(calc((var(--dest-x) - 50%) * 0.6), calc((var(--dest-y) - 50%) * 0.6 - 18px), 0) scale(1.08) rotate(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(calc(var(--dest-x) - 50%), calc(var(--dest-y) - 50%), 0) scale(1) rotate(0deg);
+  }
+}
+
+@keyframes pokerPotSweep {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(calc((var(--dest-x) - 50%) * 0.5), calc((var(--dest-y) - 50%) * 0.5 - 12px), 0) scale(1.1);
+  }
+  100% {
+    opacity: 0.9;
+    transform: translate3d(calc(var(--dest-x) - 50%), calc(var(--dest-y) - 50%), 0) scale(0.95);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .poker-flip-inner {
+    transition: opacity 80ms linear;
+    transform-style: flat;
+  }
+  .poker-flip-inner.is-facedown {
+    transform: none;
+  }
+  .poker-flip-inner.is-facedown .poker-flip-front {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .poker-flip-inner:not(.is-facedown) .poker-flip-back {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .poker-flip-back {
+    transform: none;
+  }
+  .poker-anim-deal,
+  .poker-anim-community,
+  .poker-page-transition,
+  .will-change-transform {
+    animation: none !important;
+    transition: opacity 80ms linear !important;
+  }
+}

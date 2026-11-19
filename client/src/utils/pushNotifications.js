@@ -1,5 +1,6 @@
 // FILE: client/src/utils/pushNotifications.js
 import { focusApi } from '../api/focus.api';
+import { isNativePlatform } from '../platform/detection';
 
 const urlBase64ToUint8Array = (base64String) => {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
@@ -28,6 +29,10 @@ export const isStandalonePwa = () =>
   (window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator?.standalone === true);
 
 export const registerPortalServiceWorker = async () => {
+  if (isNativePlatform()) {
+    // Pada klien native Capacitor, service worker tidak didaftarkan agar tidak bentrok dengan WebView
+    return null;
+  }
   if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
     return null;
   }

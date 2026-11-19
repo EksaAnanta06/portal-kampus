@@ -37,6 +37,8 @@ export const env = {
     password: process.env.DB_PASSWORD || '',
     database: process.env.DB_NAME || 'db_portal_pasim',
     connectionLimit: Number(process.env.DB_CONNECTION_LIMIT) || 10,
+    ssl: process.env.DB_SSL === 'true' || process.env.DB_SSL === '1',
+    sslRejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
   },
 
   jwt: {

@@ -1,9 +1,12 @@
 {
-  "name": "Portal Kampus UNAS PASIM Bandung",
-  "short_name": "Portal PASIM",
-  "description": "Portal akademik, perpustakaan materi, pengingat tugas, dan timer fokus Universitas Nasional Pasim Bandung.",
+  "name": "Portal Kampus Universitas Nasional Pasim Bandung",
+  "short_name": "Portal Pasim",
+  "description": "Portal akademik, perpustakaan materi, pengingat tugas, dan komunitas Universitas Nasional Pasim Bandung.",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "fullscreen", "minimal-ui"],
+  "orientation": "any",
   "background_color": "#0F172A",
   "theme_color": "#8B1E24",
   "lang": "id-ID",
@@ -19,6 +22,35 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/logo-pasim.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Tugas Saya",
+      "short_name": "Tugas",
+      "description": "Buka daftar tugas dan jadwal kuliah",
+      "url": "/jadwal",
+      "icons": [{ "src": "/logo-pasim.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Timer Fokus",
+      "short_name": "Fokus",
+      "description": "Mulai sesi belajar fokus Pomodoro",
+      "url": "/fokus",
+      "icons": [{ "src": "/logo-pasim.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Perpustakaan Materi",
+      "short_name": "Materi",
+      "description": "Akses materi kuliah dan modul pembelajaran",
+      "url": "/materi",
+      "icons": [{ "src": "/logo-pasim.png", "sizes": "192x192" }]
     }
   ]
 }

@@ -41,13 +41,20 @@ export default class ErrorBoundary extends Component {
             <ErrorOutlineRoundedIcon fontSize="large" />
           </div>
           <h1 className="m-0 text-xl font-bold text-slate-900 dark:text-white">Terjadi kesalahan tak terduga</h1>
-          <p className="text-muted mb-6 mt-2 text-sm">
-            Maaf, halaman ini gagal ditampilkan. Silakan coba muat ulang atau kembali ke beranda.
+          <p className="text-muted mb-4 mt-2 text-sm">
+            Maaf, komponen ini gagal ditampilkan.
           </p>
-          {import.meta.env.DEV && this.state.error && (
-            <pre className="mb-6 max-h-40 overflow-auto rounded-lg bg-slate-100 p-3 text-left text-xs text-red-700 dark:bg-slate-900 dark:text-red-300">
-              {String(this.state.error?.stack || this.state.error)}
-            </pre>
+          {this.state.error && (
+            <div className="mb-6 max-h-60 overflow-auto rounded-xl bg-red-50 dark:bg-red-950/40 p-3.5 text-left text-xs text-red-700 dark:text-red-300 border border-red-200 dark:border-red-900/50">
+              <div className="font-mono font-bold mb-1 break-words">
+                {String(this.state.error?.name || 'Error')}: {String(this.state.error?.message || this.state.error)}
+              </div>
+              {this.state.error?.stack && (
+                <pre className="text-[10px] leading-tight whitespace-pre-wrap font-mono opacity-80 mt-1 break-all">
+                  {String(this.state.error.stack)}
+                </pre>
+              )}
+            </div>
           )}
           <div className="flex justify-center gap-3">
             <Button variant="outlined" onClick={this.handleReset}>

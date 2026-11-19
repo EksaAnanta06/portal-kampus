@@ -1,80 +1,115 @@
 // FILE: client/src/components/poker/PokerResultView.jsx
 import Avatar from '@mui/material/Avatar';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import Alert from '@mui/material/Alert';
-import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import { getInitials } from '../../utils/constants';
+import PokerViewportShell from './PokerViewportShell';
+import {
+  formatCompactChips,
+  formatPlayerShortName,
+  loadPokerPreferences,
+} from '../../utils/pokerUiHelpers';
 
-export default function PokerResultView({ roomState, onBackToLobby }) {
+/**
+ * Minimalist Zero-Scroll Game Result Screen:
+ * - Compact header, 4-row leaderboard (2x2 on landscape >= 640px)
+ * - Two side-by-side thumb buttons ("Main Lagi" and "Keluar") + 1-line disclaimer
+ */
+export default function PokerResultView({
+  roomState,
+  onPlayAgain = null,
+  onBackToLobby,
+  actionBusy = false,
+}) {
+  const preferences = loadPokerPreferences();
   const { roomId, room, table } = roomState;
   const seats = [...(table?.seats || [])].sort((a, b) => b.chips - a.chips);
+  const displaySeats = seats.slice(0, 4);
   const champion =
     seats.find((s) => s.userId === room?.winnerUserId) || seats[0] || null;
 
   return (
-    <div className="mx-auto max-w-xl space-y-4 py-4">
-      <div className="card-surface p-6 text-center space-y-4">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300">
-          <EmojiEventsRoundedIcon sx={{ fontSize: 36 }} />
+    <PokerViewportShell theme={preferences.tableTheme}>
+      {/* Header Ringkas */}
+      <header className="pt-1 text-center space-y-0.5 px-2">
+        <div className="poker-text-sm font-bold text-slate-400 poker-tabular">
+          Hasil Room #{roomId}
         </div>
+        <h1 className="m-0 poker-text-lg font-extrabold text-amber-400 truncate">
+          {champion
+            ? `${formatPlayerShortName(champion.fullName, { maxChars: 16 })} Menang`
+            : 'Permainan Selesai'}
+        </h1>
+      </header>
 
-        <div>
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-            Hasil Akhir Room #{roomId}
-          </span>
-          <h1 className="m-0 mt-1 text-2xl font-black text-slate-900 dark:text-white">
-            {champion ? `${champion.fullName} Memenangkan Meja!` : 'Permainan Selesai'}
-          </h1>
-          <p className="m-0 mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Total {room?.handNumber || 0} tangan dimainkan.
-          </p>
-        </div>
-
-        <Alert severity="info" className="!rounded-xl !text-xs text-left">
-          Game hiburan dengan chip virtual. Tidak ada uang asli, dan seluruh chip room otomatis di-reset saat permainan selesai.
-        </Alert>
-
-        <div className="space-y-2 text-left">
-          {seats.map((s, idx) => (
+      {/* Papan Peringkat Sederhana (Maks 4 Baris; 2x2 di Landscape >= 640px) */}
+      <div className="my-auto mx-auto w-full max-w-md px-2 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+        {displaySeats.map((s, idx) => {
+          const isTop = idx === 0 && s.chips > 0;
+          return (
             <div
-              key={s.userId}
-              className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 p-3 dark:border-slate-700"
+              key={s.userId ?? idx}
+              className={`poker-flat-elevated min-h-[46px] px-3 py-1.5 flex items-center justify-between gap-2 ${
+                isTop ? 'border-amber-400/60' : ''
+              }`}
             >
-              <div className="flex items-center gap-2.5 min-w-0">
-                <span className="w-5 text-xs font-black text-slate-400">#{idx + 1}</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`poker-text-sm font-extrabold poker-tabular shrink-0 ${
+                    isTop ? 'text-amber-400' : 'text-slate-400'
+                  }`}
+                >
+                  #{idx + 1}
+                </span>
                 <Avatar
                   src={getOptimizedImageUrl(s.avatarUrl, { width: 64, height: 64 })}
-                  sx={{ width: 34, height: 34 }}
+                  sx={{ width: 28, height: 28, fontSize: 12 }}
                 >
                   {getInitials(s.fullName)}
                 </Avatar>
-                <span className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                  {s.fullName}
+                <span className="poker-text-md font-bold text-slate-100 truncate">
+                  {formatPlayerShortName(s.fullName, { maxChars: 14 })}
                 </span>
               </div>
-              <Chip
-                size="small"
-                color={idx === 0 && s.chips > 0 ? 'success' : 'default'}
-                label={s.chips > 0 ? `${s.chips} chip` : 'Tereliminasi'}
-              />
-            </div>
-          ))}
-        </div>
 
-        <Button
-          variant="contained"
-          color="success"
-          fullWidth
-          startIcon={<ArrowBackRoundedIcon />}
-          onClick={onBackToLobby}
-          className="!min-h-[46px]"
-        >
-          Kembali ke Lobby Poker
-        </Button>
+              <span
+                className={`poker-text-sm font-extrabold poker-tabular shrink-0 ${
+                  s.chips > 0 ? 'text-emerald-400' : 'text-slate-400'
+                }`}
+              >
+                {s.chips > 0 ? formatCompactChips(s.chips) : 'Habis'}
+              </span>
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      {/* Footer: Dua Tombol ("Main Lagi" & "Keluar") + Disclaimer 1 Baris */}
+      <footer className="mx-auto w-full max-w-md px-2 space-y-1.5 pb-1">
+        <div className="grid grid-cols-2 gap-2">
+          <Button
+            variant="contained"
+            color="success"
+            disabled={actionBusy}
+            onClick={onPlayAgain || onBackToLobby}
+            className="!min-h-[48px] !rounded-xl !bg-emerald-600 hover:!bg-emerald-500 !text-white !font-extrabold poker-text-md !normal-case !shadow-none"
+          >
+            Main Lagi
+          </Button>
+          <Button
+            variant="outlined"
+            color="inherit"
+            disabled={actionBusy}
+            onClick={onBackToLobby}
+            className="!min-h-[48px] !rounded-xl !border-slate-600 !text-slate-200 !font-bold poker-text-md !normal-case"
+          >
+            Keluar
+          </Button>
+        </div>
+        <p className="m-0 poker-text-sm text-slate-400 text-center truncate">
+          Chip virtual, tanpa uang asli
+        </p>
+      </footer>
+    </PokerViewportShell>
   );
 }

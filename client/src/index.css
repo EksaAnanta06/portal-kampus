@@ -1,4 +1,5 @@
 /* FILE: client/src/index.css */
+@import './styles/pokerTokens.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

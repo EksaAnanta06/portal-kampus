@@ -1,25 +1,44 @@
 // FILE: client/src/pages/poker/PokerLobbyPage.jsx
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import MenuItem from '@mui/material/MenuItem';
-import Skeleton from '@mui/material/Skeleton';
+import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
 import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import TextField from '@mui/material/TextField';
-import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
-import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
-import EmojiEventsRoundedIcon from '@mui/icons-material/EmojiEventsRounded';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import ContentPasteRoundedIcon from '@mui/icons-material/ContentPasteRounded';
 import useAuthStore, { selectIsAdmin, selectIsStaff } from '../../store/useAuthStore';
 import usePokerStore from '../../store/usePokerStore';
 import { FEATURE_POKER_ENV_ENABLED, pokerApi } from '../../api/poker.api';
 import { getErrorMessage } from '../../api/axiosInstance';
 import { toast } from '../../store/useThemeStore';
+import PokerViewportShell from '../../components/poker/PokerViewportShell';
+import ThemePicker from '../../components/poker/ThemePicker';
+import {
+  formatCompactChips,
+  loadPokerPreferences,
+  savePokerPreferences,
+} from '../../utils/pokerUiHelpers';
+
+const CHIP_PRESETS = [
+  { value: 500, label: '500' },
+  { value: 1000, label: '1K' },
+  { value: 2000, label: '2K' },
+];
+
+const BLIND_PRESETS = [
+  { value: '5/10', label: '5/10' },
+  { value: '10/20', label: '10/20' },
+  { value: '25/50', label: '25/50' },
+];
+
+const TIMER_PRESETS = [
+  { value: 15, label: '15d' },
+  { value: 30, label: '30d' },
+  { value: 45, label: '45d' },
+];
 
 export default function PokerLobbyPage() {
   const navigate = useNavigate();
@@ -35,15 +54,19 @@ export default function PokerLobbyPage() {
     joinRoom,
   } = usePokerStore();
 
+  const [preferences, setPreferences] = useState(() => loadPokerPreferences());
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const [joinSheetOpen, setJoinSheetOpen] = useState(false);
+  const [menuSheetOpen, setMenuSheetOpen] = useState(false);
+  const [menuTab, setMenuTab] = useState('stats');
+
   const [createForm, setCreateForm] = useState({
     startingChips: 1000,
     blindLevel: '10/20',
     turnTimeoutSec: 30,
   });
   const [joinCode, setJoinCode] = useState('');
-  const [submittingBot, setSubmittingBot] = useState(false);
-  const [submittingCreate, setSubmittingCreate] = useState(false);
-  const [submittingJoin, setSubmittingJoin] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [togglingFeature, setTogglingFeature] = useState(false);
 
   useEffect(() => {
@@ -51,48 +74,59 @@ export default function PokerLobbyPage() {
     fetchLobbyStatus().catch(() => {});
   }, [fetchLobbyStatus]);
 
-  const handlePlayVsBot = async () => {
-    setSubmittingBot(true);
-    try {
-      const state = await createRoom({ ...createForm, quickBotMode: true });
-      toast.success(`Meja Capsa Banting ${state.roomId} siap! Melawan 3 Bot.`);
-      navigate(`/poker/${state.roomId}`);
-    } catch (err) {
-      toast.error(err.message || 'Gagal memulai permainan lawan Bot.');
-    } finally {
-      setSubmittingBot(false);
-    }
+  const updatePreferences = (partial) => {
+    const next = savePokerPreferences({ ...preferences, ...partial });
+    setPreferences(next);
   };
 
-  const handleCreate = async (e) => {
-    e.preventDefault();
-    setSubmittingCreate(true);
+  const handleCreateRoom = async (quickBotMode = false) => {
+    setSubmitting(true);
     try {
-      const state = await createRoom({ ...createForm, quickBotMode: false });
-      toast.success(`Room ${state.roomId} dibuat.`);
+      const state = await createRoom({ ...createForm, quickBotMode });
+      setCreateSheetOpen(false);
       navigate(`/poker/${state.roomId}`);
     } catch (err) {
       toast.error(err.message || 'Gagal membuat room.');
     } finally {
-      setSubmittingCreate(false);
+      setSubmitting(false);
     }
   };
 
-  const handleJoin = async (e) => {
+  const handleJoinSubmit = async (e) => {
     e.preventDefault();
     const cleaned = joinCode.trim().toUpperCase();
     if (cleaned.length < 4) {
-      toast.error('Masukkan kode ID room 6 karakter yang valid.');
+      toast.error('Masukkan kode room 6 karakter.');
       return;
     }
-    setSubmittingJoin(true);
+    setSubmitting(true);
     try {
       const state = await joinRoom(cleaned);
+      setJoinSheetOpen(false);
       navigate(`/poker/${state.roomId}`);
     } catch (err) {
       toast.error(err.message || 'Gagal bergabung ke room.');
     } finally {
-      setSubmittingJoin(false);
+      setSubmitting(false);
+    }
+  };
+
+  const handlePasteClipboard = async () => {
+    try {
+      if (typeof window !== 'undefined' && window.navigator?.clipboard?.readText) {
+        const text = await window.navigator.clipboard.readText();
+        const cleaned = String(text || '')
+          .replace(/[^A-Za-z0-9]/g, '')
+          .toUpperCase()
+          .slice(0, 6);
+        if (cleaned) {
+          setJoinCode(cleaned);
+          return;
+        }
+      }
+      toast.info('Tempel kode secara manual pada kolom input.');
+    } catch (_err) {
+      toast.info('Izin clipboard tidak tersedia, ketik kode 6 karakter.');
     }
   };
 
@@ -103,7 +137,7 @@ export default function PokerLobbyPage() {
       toast.success(res.message);
       await fetchLobbyStatus();
     } catch (err) {
-      toast.error(getErrorMessage(err, 'Gagal mengubah status fitur Capsa Banting.'));
+      toast.error(getErrorMessage(err, 'Gagal mengubah status fitur.'));
     } finally {
       setTogglingFeature(false);
     }
@@ -121,285 +155,429 @@ export default function PokerLobbyPage() {
 
   if (!FEATURE_POKER_ENV_ENABLED || (!statusLoading && !featureEnabled && !isAdmin)) {
     return (
-      <div className="mx-auto max-w-xl py-8">
-        <div className="card-surface p-6 text-center space-y-3">
-          <CasinoRoundedIcon sx={{ fontSize: 44 }} className="text-slate-400 mx-auto" />
-          <h1 className="m-0 text-xl font-extrabold text-slate-900 dark:text-white">
-            Capsa Banting Tidak Tersedia
-          </h1>
-          <p className="m-0 text-sm text-slate-500 dark:text-slate-400">
-            Fitur Poker Capsa Banting sedang dinonaktifkan sementara oleh pengelola portal.
+      <PokerViewportShell theme={preferences.tableTheme}>
+        <div className="m-auto w-full max-w-sm poker-flat-panel p-5 text-center space-y-4">
+          <h1 className="m-0 poker-text-md font-bold">Fitur Sedang Nonaktif</h1>
+          <p className="m-0 poker-text-sm text-slate-400">
+            Permainan sedang dinonaktifkan sementara oleh pengelola portal.
           </p>
-          <Button component={Link} to="/" variant="outlined" className="!min-h-[44px]">
-            Kembali ke Beranda
+          <Button
+            component={Link}
+            to="/"
+            variant="outlined"
+            color="inherit"
+            fullWidth
+            className="!min-h-[46px] !rounded-xl !border-slate-600 !text-slate-100"
+          >
+            Kembali ke Portal
           </Button>
         </div>
-      </div>
+      </PokerViewportShell>
     );
   }
 
   const stats = lobbyData?.myStats || { total_played: 0, total_wins: 0, recent_matches: [] };
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      {/* Banner Header Hijau Tenang */}
-      <section className="rounded-3xl bg-gradient-to-r from-emerald-800 via-teal-800 to-slate-900 p-5 sm:p-7 text-white shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1.5">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-100">
-              <CasinoRoundedIcon sx={{ fontSize: 14 }} />
-              Hiburan Mahasiswa · Capsa Banting (Big 2)
-            </span>
-            <h1 className="m-0 text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white">
-              Poker Capsa Banting Virtual
-            </h1>
-            <p className="m-0 text-xs sm:text-sm text-emerald-100">
-              Aturan Big 2 klasik: 4 pemain × 13 kartu, kartu <strong>2♠</strong> tertinggi &amp; pembukaan wajib <strong>3♦</strong>. Main cepat lawan Bot atau mabar lewat ID room!
-            </p>
+    <PokerViewportShell theme={preferences.tableTheme}>
+      {/* Bar Atas Tipis: Kembali (Kiri), Judul Kecil (Tengah), Satu Ikon Menu (Kanan) */}
+      <header className="flex items-center justify-between px-1">
+        <IconButton
+          component={Link}
+          to="/"
+          aria-label="Kembali ke beranda portal"
+          className="!min-h-[44px] !min-w-[44px] !text-slate-200"
+        >
+          <ArrowBackRoundedIcon fontSize="small" />
+        </IconButton>
+
+        <h1 className="m-0 poker-text-md font-extrabold tracking-tight text-slate-100">
+          Poker Kampus
+        </h1>
+
+        <IconButton
+          onClick={() => setMenuSheetOpen(true)}
+          aria-label="Buka menu statistik, aturan, dan pengaturan"
+          className="!min-h-[44px] !min-w-[44px] !text-slate-200"
+        >
+          <MenuRoundedIcon fontSize="small" />
+        </IconButton>
+      </header>
+
+      {/* Area Tengah Lega: Hanya Dua Tombol Besar ("Buat Room" dan "Gabung") */}
+      <div className="my-auto mx-auto w-full max-w-xs px-3 flex flex-col gap-3">
+        <Button
+          variant="contained"
+          color="success"
+          disabled={!featureEnabled || submitting}
+          onClick={() => setCreateSheetOpen(true)}
+          className="!min-h-[54px] !rounded-2xl !bg-emerald-600 hover:!bg-emerald-500 !text-white !font-extrabold poker-text-md !normal-case !shadow-none"
+        >
+          Buat Room
+        </Button>
+
+        <Button
+          variant="outlined"
+          color="inherit"
+          disabled={!featureEnabled || submitting}
+          onClick={() => setJoinSheetOpen(true)}
+          className="!min-h-[54px] !rounded-2xl !border-slate-600 !bg-slate-900/60 hover:!bg-slate-800 !text-slate-100 !font-extrabold poker-text-md !normal-case"
+        >
+          Gabung
+        </Button>
+      </div>
+
+      {/* Disclaimer Satu Baris di Bawah */}
+      <footer className="py-1 text-center">
+        <p className="m-0 poker-text-sm text-slate-400 truncate">
+          Chip virtual, tanpa uang asli
+        </p>
+      </footer>
+
+      {/* SHEET 1: Buat Room (Pilihan Preset Ringkas Tanpa Form Panjang) */}
+      <Drawer
+        anchor="bottom"
+        open={createSheetOpen}
+        onClose={() => setCreateSheetOpen(false)}
+        PaperProps={{
+          className:
+            '!mx-auto !w-full !max-w-md !rounded-t-2xl !border-t !border-slate-700 !bg-[#131d22] !text-slate-100',
+        }}
+      >
+        <div className="p-4 space-y-3.5 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between">
+            <span className="poker-text-md font-extrabold">Buat Room</span>
+            <IconButton
+              onClick={() => setCreateSheetOpen(false)}
+              aria-label="Tutup sheet buat room"
+              className="!min-h-[44px] !min-w-[44px] !text-slate-300"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-            {lobbyData?.activeRoomId ? (
-              <Button
-                component={Link}
-                to={`/poker/${lobbyData.activeRoomId}`}
-                variant="contained"
-                className="!min-h-[44px] !rounded-xl !bg-white !font-bold !text-emerald-800 hover:!bg-emerald-50"
-              >
-                Lanjutkan Room #{lobbyData.activeRoomId}
-              </Button>
-            ) : (
-              <Button
-                variant="contained"
-                startIcon={<SmartToyRoundedIcon />}
-                disabled={submittingBot || !featureEnabled}
-                onClick={handlePlayVsBot}
-                className="!min-h-[46px] !rounded-xl !bg-white !px-5 !font-black !text-emerald-800 hover:!bg-emerald-50 shadow-lg"
-              >
-                {submittingBot ? 'Menyiapkan Meja...' : 'Main vs 3 Bot (Big 2)'}
-              </Button>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Disclaimer Wajib */}
-      <Alert severity="info" className="!rounded-2xl !text-xs sm:!text-sm">
-        <strong>Game hiburan dengan chip virtual. Tidak ada uang asli.</strong> Tidak ada top-up, penarikan, atau saldo permanen antar room — seluruh chip otomatis habis saat room selesai.
-      </Alert>
-
-      {/* Kontrol Runtime Admin */}
-      {isAdmin && (
-        <div className="card-surface p-4 flex flex-wrap items-center justify-between gap-3 border-l-4 border-l-amber-500">
-          <div>
-            <div className="text-sm font-bold text-slate-900 dark:text-white">
-              Kontrol Admin Fitur Capsa Banting
+          {/* Preset Chip Awal */}
+          <div className="space-y-1">
+            <span className="poker-text-sm font-semibold text-slate-400">Chip Awal</span>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Pilih chip awal">
+              {CHIP_PRESETS.map((opt) => {
+                const active = createForm.startingChips === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCreateForm({ ...createForm, startingChips: opt.value })}
+                    className={`min-h-[44px] rounded-xl border poker-text-md font-bold poker-tabular transition ${
+                      active
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                        : 'border-slate-700 bg-slate-900/60 text-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
-            <div className="text-xs text-slate-500 dark:text-slate-400">
-              Matikan kapan saja tanpa redeploy. Room aktif otomatis ditutup dengan pemberitahuan sopan.
+          </div>
+
+          {/* Preset Blind / Tarif */}
+          <div className="space-y-1">
+            <span className="poker-text-sm font-semibold text-slate-400">Blind / Tarif</span>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Pilih blind">
+              {BLIND_PRESETS.map((opt) => {
+                const active = createForm.blindLevel === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCreateForm({ ...createForm, blindLevel: opt.value })}
+                    className={`min-h-[44px] rounded-xl border poker-text-md font-bold poker-tabular transition ${
+                      active
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                        : 'border-slate-700 bg-slate-900/60 text-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
-          <FormControlLabel
-            control={
-              <Switch
-                color="success"
-                checked={Boolean(featureEnabled)}
-                disabled={togglingFeature}
-                onChange={(e) => handleAdminToggleFeature(e.target.checked)}
-              />
-            }
-            label={<span className="text-sm font-bold">{featureEnabled ? 'Aktif' : 'Mati'}</span>}
-          />
-        </div>
-      )}
 
-      {/* Grid Buat Room Privat & Gabung Room */}
-      <div className="grid gap-5 md:grid-cols-2">
-        <form onSubmit={handleCreate} className="card-surface p-5 space-y-4">
+          {/* Preset Timer Giliran */}
+          <div className="space-y-1">
+            <span className="poker-text-sm font-semibold text-slate-400">Timer Giliran</span>
+            <div className="grid grid-cols-3 gap-2" role="group" aria-label="Pilih timer giliran">
+              {TIMER_PRESETS.map((opt) => {
+                const active = createForm.turnTimeoutSec === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setCreateForm({ ...createForm, turnTimeoutSec: opt.value })}
+                    className={`min-h-[44px] rounded-xl border poker-text-md font-bold poker-tabular transition ${
+                      active
+                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                        : 'border-slate-700 bg-slate-900/60 text-slate-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <Button
+              variant="outlined"
+              color="inherit"
+              disabled={submitting}
+              onClick={() => handleCreateRoom(true)}
+              className="!min-h-[48px] !rounded-xl !border-slate-600 !text-slate-100 !font-bold poker-text-sm !normal-case"
+            >
+              Lawan Bot
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              disabled={submitting}
+              onClick={() => handleCreateRoom(false)}
+              className="!min-h-[48px] !rounded-xl !bg-emerald-600 !text-white !font-extrabold poker-text-sm !normal-case !shadow-none"
+            >
+              {submitting ? 'Membuat…' : 'Buka Room'}
+            </Button>
+          </div>
+
+          {lobbyData?.activeRoomId && (
+            <Button
+              component={Link}
+              to={`/poker/${lobbyData.activeRoomId}`}
+              variant="text"
+              color="warning"
+              fullWidth
+              className="!min-h-[44px] !font-bold poker-text-sm !normal-case"
+            >
+              Lanjutkan Room Aktif #{lobbyData.activeRoomId}
+            </Button>
+          )}
+        </div>
+      </Drawer>
+
+      {/* SHEET 2: Gabung Room (Satu Input 6 Karakter + Tempel Clipboard + Satu Tombol) */}
+      <Drawer
+        anchor="bottom"
+        open={joinSheetOpen}
+        onClose={() => setJoinSheetOpen(false)}
+        PaperProps={{
+          className:
+            '!mx-auto !w-full !max-w-md !rounded-t-2xl !border-t !border-slate-700 !bg-[#131d22] !text-slate-100',
+        }}
+      >
+        <form
+          onSubmit={handleJoinSubmit}
+          className="p-4 space-y-3.5"
+          style={{
+            paddingBottom:
+              'calc(1rem + var(--poker-keyboard-inset, 0px) + env(safe-area-inset-bottom))',
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <span className="poker-text-md font-extrabold">Gabung Room</span>
+            <IconButton
+              onClick={() => setJoinSheetOpen(false)}
+              aria-label="Tutup sheet gabung room"
+              className="!min-h-[44px] !min-w-[44px] !text-slate-300"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </div>
+
           <div className="flex items-center gap-2">
-            <AddCircleOutlineRoundedIcon className="text-emerald-600 dark:text-emerald-400" />
-            <h2 className="m-0 text-base font-extrabold text-slate-900 dark:text-white">
-              Buat Room Mabar (Privat)
-            </h2>
+            <input
+              type="text"
+              inputMode="text"
+              autoCapitalize="characters"
+              autoComplete="off"
+              maxLength={6}
+              value={joinCode}
+              onChange={(e) =>
+                setJoinCode(
+                  e.target.value
+                    .replace(/[^A-Za-z0-9]/g, '')
+                    .toUpperCase()
+                    .slice(0, 6)
+                )
+              }
+              placeholder="KODE 6 DIGIT"
+              aria-label="Kode ID Room 6 karakter"
+              className="min-h-[48px] flex-1 rounded-xl border border-slate-600 bg-slate-900 px-3 text-center font-mono poker-text-lg font-extrabold tracking-widest text-white placeholder:text-slate-500 focus:border-emerald-400 focus:outline-none"
+            />
+            <IconButton
+              onClick={handlePasteClipboard}
+              aria-label="Tempel kode dari clipboard"
+              className="!min-h-[48px] !min-w-[48px] !rounded-xl !border !border-slate-600 !bg-slate-800 !text-slate-200"
+            >
+              <ContentPasteRoundedIcon fontSize="small" />
+            </IconButton>
           </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <TextField
-              select
-              label="Chip Awal"
-              value={createForm.startingChips}
-              onChange={(e) => setCreateForm({ ...createForm, startingChips: Number(e.target.value) })}
-            >
-              <MenuItem value={500}>500 Chip</MenuItem>
-              <MenuItem value={1000}>1.000 Chip</MenuItem>
-              <MenuItem value={2000}>2.000 Chip</MenuItem>
-            </TextField>
-
-            <TextField
-              select
-              label="Taruhan / Kartu"
-              value={createForm.blindLevel}
-              onChange={(e) => setCreateForm({ ...createForm, blindLevel: e.target.value })}
-            >
-              <MenuItem value="5/10">5 Chip / Kartu</MenuItem>
-              <MenuItem value="10/20">10 Chip / Kartu</MenuItem>
-              <MenuItem value="25/50">25 Chip / Kartu</MenuItem>
-            </TextField>
-
-            <TextField
-              select
-              label="Timer Giliran"
-              value={createForm.turnTimeoutSec}
-              onChange={(e) => setCreateForm({ ...createForm, turnTimeoutSec: Number(e.target.value) })}
-            >
-              <MenuItem value={15}>15 Detik</MenuItem>
-              <MenuItem value={30}>30 Detik</MenuItem>
-              <MenuItem value={45}>45 Detik</MenuItem>
-            </TextField>
-          </div>
-
-          <p className="m-0 text-[11px] text-slate-500 dark:text-slate-400">
-            Jika teman yang masuk kurang dari 4 orang, kursi kosong otomatis diisi Bot AI saat dimulai.
-          </p>
 
           <Button
             type="submit"
             variant="contained"
             color="success"
             fullWidth
-            disabled={submittingCreate || !featureEnabled}
-            className="!min-h-[46px] !font-bold"
+            disabled={submitting || joinCode.trim().length < 4}
+            className="!min-h-[48px] !rounded-xl !bg-emerald-600 !text-white !font-extrabold poker-text-md !normal-case !shadow-none"
           >
-            {submittingCreate ? 'Membuat Room...' : 'Buat Room Mabar'}
+            {submitting ? 'Menyambungkan…' : 'Masuk ke Meja'}
           </Button>
         </form>
+      </Drawer>
 
-        <form onSubmit={handleJoin} className="card-surface p-5 flex flex-col justify-between gap-4">
-          <div className="space-y-3">
-            <div className="flex items-center gap-2">
-              <LoginRoundedIcon className="text-emerald-600 dark:text-emerald-400" />
-              <h2 className="m-0 text-base font-extrabold text-slate-900 dark:text-white">
-                Gabung Lewat ID Room
-              </h2>
-            </div>
-            <p className="m-0 text-xs text-slate-500 dark:text-slate-400">
-              Masukkan 6 karakter kode room dari teman (tidak peka huruf besar/kecil).
-            </p>
-            <TextField
-              label="ID Room (contoh: A7K9P2)"
-              value={joinCode}
-              onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-              inputProps={{ maxLength: 8, style: { letterSpacing: '0.18em', fontWeight: 800 } }}
-              placeholder="XXXXXX"
-            />
+      {/* SHEET 3: Menu Sekunder Tunggal (Statistik, Aturan, Pengaturan, & Admin) */}
+      <Drawer
+        anchor="bottom"
+        open={menuSheetOpen}
+        onClose={() => setMenuSheetOpen(false)}
+        PaperProps={{
+          className:
+            '!mx-auto !w-full !max-w-lg !rounded-t-2xl !border-t !border-slate-700 !bg-[#131d22] !text-slate-100 !max-h-[82dvh]',
+        }}
+      >
+        <div className="p-4 space-y-3 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between">
+            <span className="poker-text-md font-extrabold">Menu Poker</span>
+            <IconButton
+              onClick={() => setMenuSheetOpen(false)}
+              aria-label="Tutup menu poker"
+              className="!min-h-[44px] !min-w-[44px] !text-slate-300"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
           </div>
 
-          <Button
-            type="submit"
-            variant="outlined"
-            color="success"
-            fullWidth
-            disabled={submittingJoin || !featureEnabled}
-            className="!min-h-[46px] !font-bold"
-          >
-            {submittingJoin ? 'Menyambungkan...' : 'Masuk ke Meja'}
-          </Button>
-        </form>
-      </div>
-
-      {/* Ringkasan Aturan Singkat Capsa Banting + Statistik */}
-      <div className="card-surface p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <EmojiEventsRoundedIcon className="text-amber-500" />
-            <h2 className="m-0 text-base font-extrabold text-slate-900 dark:text-white">
-              Statistik Hiburan Saya
-            </h2>
-          </div>
-
-          {statusLoading ? (
-            <Skeleton width={160} height={28} />
-          ) : (
-            <div className="flex items-center gap-2">
-              <Chip size="small" label={`Total Main: ${stats.total_played}x`} />
-              <Chip size="small" color="success" label={`Menang Meja: ${stats.total_wins}x`} />
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600 dark:bg-navy dark:text-slate-300 space-y-1">
-          <div>
-            <strong>Urutan Angka:</strong> 3 &lt; 4 &lt; 5 &lt; 6 &lt; 7 &lt; 8 &lt; 9 &lt; 10 &lt; J &lt; Q &lt; K &lt; A &lt; <strong>2</strong> &nbsp;|&nbsp; <strong>Urutan Kembang:</strong> ♦ &lt; ♣ &lt; ♥ &lt; ♠
-          </div>
-          <div>
-            <strong>Kombinasi 5 Kartu:</strong> Straight (Seri) &lt; Flush (Warna) &lt; Full House (Polo) &lt; Four of a Kind (Bom) &lt; Straight Flush (Bom Utama). Bom bisa memotong kartu <strong>2</strong>!
-          </div>
-        </div>
-
-        {!statusLoading && stats.recent_matches?.length === 0 ? (
-          <p className="m-0 text-xs text-slate-400">
-            Belum ada riwayat permainan selesai. Tekan &quot;Main vs 3 Bot (Big 2)&quot; untuk langsung bermain!
-          </p>
-        ) : (
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {(stats.recent_matches || []).map((m) => (
-              <div
-                key={m.id}
-                className="rounded-xl border border-slate-200 p-3 text-xs space-y-1 dark:border-slate-700"
+          <div className="grid grid-cols-3 gap-1.5" role="tablist">
+            {[
+              { id: 'stats', label: 'Statistik' },
+              { id: 'rules', label: 'Aturan' },
+              { id: 'settings', label: 'Pengaturan' },
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                aria-selected={menuTab === tab.id}
+                onClick={() => setMenuTab(tab.id)}
+                className={`min-h-[44px] rounded-xl border poker-text-sm font-bold transition ${
+                  menuTab === tab.id
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                    : 'border-slate-700 bg-slate-900/50 text-slate-300'
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono font-extrabold text-slate-900 dark:text-white">
-                    #{m.room_id}
-                  </span>
-                  <Chip
-                    size="small"
-                    color={m.is_winner ? 'success' : 'default'}
-                    label={m.is_winner ? 'Juara' : 'Selesai'}
-                    className="!h-5 !text-[10px]"
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          {menuTab === 'stats' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="poker-flat-elevated p-3 text-center">
+                  <div className="poker-text-sm text-slate-400">Total Main</div>
+                  <div className="poker-text-lg font-extrabold text-white">
+                    {stats.total_played || 0}
+                  </div>
+                </div>
+                <div className="poker-flat-elevated p-3 text-center">
+                  <div className="poker-text-sm text-slate-400">Menang Meja</div>
+                  <div className="poker-text-lg font-extrabold text-emerald-400">
+                    {stats.total_wins || 0}
+                  </div>
+                </div>
+              </div>
+
+              {isAdmin && (
+                <div className="poker-flat-elevated p-3 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="poker-text-sm font-bold text-white">Status Fitur (Admin)</div>
+                    <div className="poker-text-sm text-slate-400">
+                      Matikan atau aktifkan fitur tanpa redeploy
+                    </div>
+                  </div>
+                  <Switch
+                    color="success"
+                    checked={Boolean(featureEnabled)}
+                    disabled={togglingFeature}
+                    onChange={(e) => handleAdminToggleFeature(e.target.checked)}
+                    inputProps={{ 'aria-label': 'Status fitur poker' }}
                   />
                 </div>
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {m.player_count} pemain · {m.jumlah_tangan} ronde
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              )}
 
-      {/* Daftar Room Aktif untuk Staff */}
-      {isStaff && lobbyData?.adminRooms?.length > 0 && (
-        <div className="card-surface p-5 space-y-3">
-          <h3 className="m-0 text-sm font-extrabold text-slate-900 dark:text-white">
-            Moderasi: Room Aktif ({lobbyData.adminRooms.length})
-          </h3>
-          <div className="space-y-2">
-            {lobbyData.adminRooms.map((rm) => (
-              <div
-                key={rm.roomId}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 p-2.5 text-xs dark:border-slate-700"
-              >
-                <div>
-                  <span className="font-mono font-bold text-slate-900 dark:text-white">#{rm.roomId}</span>
-                  <span className="ml-2 text-slate-500">
-                    Fase: {rm.phase} · {rm.playerCount} kursi · Ronde #{rm.handNumber}
-                  </span>
+              {isStaff && lobbyData?.adminRooms?.length > 0 && (
+                <div className="space-y-1.5">
+                  <div className="poker-text-sm font-bold text-slate-300">
+                    Room Aktif ({lobbyData.adminRooms.length})
+                  </div>
+                  {lobbyData.adminRooms.slice(0, 4).map((rm) => (
+                    <div
+                      key={rm.roomId}
+                      className="poker-flat-elevated px-3 py-2 flex items-center justify-between gap-2"
+                    >
+                      <span className="poker-text-sm font-mono font-bold">
+                        #{rm.roomId} · {rm.playerCount}p
+                      </span>
+                      <Button
+                        size="small"
+                        color="error"
+                        variant="outlined"
+                        onClick={() => handleForceCloseRoom(rm.roomId)}
+                        className="!min-h-[44px] poker-text-sm"
+                      >
+                        Tutup
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                <Button
-                  size="small"
-                  color="error"
-                  variant="outlined"
-                  startIcon={<CloseRoundedIcon />}
-                  onClick={() => handleForceCloseRoom(rm.roomId)}
-                  className="!min-h-[36px]"
-                >
-                  Tutup Paksa
-                </Button>
+              )}
+            </div>
+          )}
+
+          {menuTab === 'rules' && (
+            <div className="poker-flat-elevated p-3.5 space-y-2 poker-text-sm text-slate-200">
+              <div>
+                <strong>Peringkat Tangan (Tinggi ke Rendah):</strong>
               </div>
-            ))}
-          </div>
+              <ol className="m-0 pl-4 space-y-1">
+                <li>Royal / Straight Flush (5 kartu berurutan satu kembang)</li>
+                <li>Four of a Kind / Bom (4 kartu angka sama + 1 kartu)</li>
+                <li>Full House / Polo (3 kartu sama + Pair)</li>
+                <li>Flush / Warna (5 kartu satu kembang)</li>
+                <li>Straight / Seri (5 kartu angka berurutan)</li>
+                <li>Three of a Kind, One Pair (Pair), High Card (Single)</li>
+              </ol>
+              <div className="pt-1 text-slate-400">
+                Chip awal tiap room ({formatCompactChips(createForm.startingChips)}) bersifat virtual dan di-reset saat room berakhir.
+              </div>
+            </div>
+          )}
+
+          {menuTab === 'settings' && (
+            <ThemePicker
+              tableTheme={preferences.tableTheme}
+              cardBack={preferences.cardBack}
+              fourColorDeck={preferences.fourColorDeck}
+              onChangeTheme={(tableTheme) => updatePreferences({ tableTheme })}
+              onChangeCardBack={(cardBack) => updatePreferences({ cardBack })}
+              onChangeFourColorDeck={(fourColorDeck) => updatePreferences({ fourColorDeck })}
+            />
+          )}
         </div>
-      )}
-    </div>
+      </Drawer>
+    </PokerViewportShell>
   );
 }

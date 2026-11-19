@@ -47,6 +47,7 @@ app.use((req, res, next) => {
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
+    contentSecurityPolicy: env.nodeEnv === 'production' ? undefined : false,
   })
 );
 

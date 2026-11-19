@@ -1,6 +1,6 @@
 // FILE: client/src/App.jsx
 import { lazy, Suspense, useEffect } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import CircularProgress from '@mui/material/CircularProgress';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import ProtectedRoute from './components/common/ProtectedRoute';
@@ -11,6 +11,9 @@ import AdminLayout from './layouts/AdminLayout';
 import useAuthStore from './store/useAuthStore';
 import { ASSIGNMENT_HUB_ROLES } from './utils/constants';
 import { registerPortalServiceWorker } from './utils/pushNotifications';
+import UpdateBanner from './components/pwa/UpdateBanner';
+import InstallPromptBanner from './components/pwa/InstallPromptBanner';
+import { syncStatusBarTheme, initBackButtonListener } from './platform';
 
 // Halaman di-lazy-load agar bundle awal kecil
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -40,6 +43,9 @@ const loadStudyPlannerPage = () => import('./pages/focus/StudyPlannerPage');
 const StudyPlannerPage = lazy(loadStudyPlannerPage);
 const PokerLobbyPage = lazy(() => import('./pages/poker/PokerLobbyPage'));
 const PokerRoomPage = lazy(() => import('./pages/poker/PokerRoomPage'));
+const PokerComponentPreviewPage = import.meta.env.DEV
+  ? lazy(() => import('./pages/poker/PokerComponentPreviewPage'))
+  : null;
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 export function PageLoader() {
@@ -61,11 +67,33 @@ function ScrollToTop() {
 export default function App() {
   const initAuth = useAuthStore((s) => s.initAuth);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Inisialisasi platform native (status bar & back button)
+  useEffect(() => {
+    syncStatusBarTheme('dark', '#0f172a');
+    const cleanupBack = initBackButtonListener({
+      navigate,
+      getCurrentPath: () => window.location.pathname,
+    });
+    return () => {
+      cleanupBack();
+    };
+  }, [navigate]);
 
   // Pulihkan sesi dari cookie refresh token saat aplikasi dibuka & preload rute utama saat idle
   useEffect(() => {
     initAuth();
     registerPortalServiceWorker().catch(() => {});
+
+    // Pastikan di lingkungan native Capacitor tidak ada service worker lama yang membekukan asset WebView
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator && window.Capacitor?.isNativePlatform()) {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const reg of registrations) {
+          reg.unregister();
+        }
+      }).catch(() => {});
+    }
 
     const preloadRoutes = () => {
       Promise.allSettled([
@@ -88,6 +116,8 @@ export default function App() {
   return (
     <ErrorBoundary resetKey={location.pathname}>
       <ScrollToTop />
+      <UpdateBanner />
+      <InstallPromptBanner />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* ---------- Halaman publik & member ---------- */}
@@ -98,6 +128,9 @@ export default function App() {
             <Route path="pengumuman" element={<AnnouncementsPage />} />
             <Route path="pengumuman/:slugOrId" element={<AnnouncementsPage />} />
             <Route path="agenda" element={<EventsPage />} />
+            {import.meta.env.DEV && PokerComponentPreviewPage && (
+              <Route path="poker/_preview" element={<PokerComponentPreviewPage />} />
+            )}
 
             <Route element={<ProtectedRoute />}>
               <Route path="direktori" element={<DirectoryPage />} />

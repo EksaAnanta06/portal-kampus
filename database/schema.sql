@@ -413,12 +413,10 @@ CREATE TABLE IF NOT EXISTS fokus_sesi (
     selesai_at DATETIME NULL,
     catatan VARCHAR(500) NULL,
     siklus_ke TINYINT UNSIGNED NOT NULL DEFAULT 1,
-    active_user_lock INT UNSIGNED GENERATED ALWAYS AS (IF(status IN ('berjalan', 'dijeda'), user_id, NULL)) STORED,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_fs_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_fs_tugas FOREIGN KEY (tugas_id) REFERENCES tugas_pribadi(id) ON DELETE SET NULL,
     CONSTRAINT fk_fs_jadwal FOREIGN KEY (sesi_jadwal_id) REFERENCES sesi_jadwal(id) ON DELETE SET NULL,
-    UNIQUE KEY uq_fokus_sesi_active_user (active_user_lock),
     INDEX idx_fs_user_status (user_id, status),
     INDEX idx_fs_user_selesai (user_id, status, selesai_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

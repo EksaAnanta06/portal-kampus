@@ -12,6 +12,12 @@ export const pool = mysql.createPool({
   connectionLimit: env.db.connectionLimit,
   queueLimit: 0,
   timezone: '+07:00',
+  ssl: env.db.ssl
+    ? {
+        minVersion: 'TLSv1.2',
+        rejectUnauthorized: env.db.sslRejectUnauthorized,
+      }
+    : undefined,
 });
 
 const REQUIRED_CORE_TABLES = [
@@ -205,7 +211,6 @@ export const ensureFocusPlannerSchema = async () => {
         selesai_at DATETIME NULL COMMENT 'Waktu selesai/berhenti (UTC)',
         catatan VARCHAR(500) NULL,
         siklus_ke TINYINT UNSIGNED NOT NULL DEFAULT 1,
-        active_user_lock INT UNSIGNED GENERATED ALWAYS AS (IF(status IN ('berjalan', 'dijeda'), user_id, NULL)) STORED,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT fk_fs_user
           FOREIGN KEY (user_id) REFERENCES users(id)
@@ -216,7 +221,6 @@ export const ensureFocusPlannerSchema = async () => {
         CONSTRAINT fk_fs_jadwal
           FOREIGN KEY (sesi_jadwal_id) REFERENCES sesi_jadwal(id)
           ON DELETE SET NULL,
-        UNIQUE KEY uq_fokus_sesi_active_user (active_user_lock),
         INDEX idx_fs_user_status (user_id, status),
         INDEX idx_fs_user_selesai (user_id, status, selesai_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci

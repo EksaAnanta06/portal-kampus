@@ -71,8 +71,12 @@ export default function HomePage() {
     Promise.all([campusApi.getHome(), galleryApi.getAngkatanList()])
       .then(([homeRes, angkatanRes]) => {
         if (!active) return;
-        setData(homeRes.data);
-        setAngkatanList(angkatanRes.data || []);
+        if (homeRes?.data && typeof homeRes.data === 'object') {
+          setData(homeRes.data);
+        }
+        if (Array.isArray(angkatanRes?.data)) {
+          setAngkatanList(angkatanRes.data);
+        }
       })
       .catch((err) => {
         console.error('Gagal memuat beranda dashboard:', err);
@@ -107,7 +111,10 @@ export default function HomePage() {
     }));
   };
 
-  const stats = data.stats || {};
+  const stats = data?.stats && typeof data.stats === 'object' ? data.stats : {};
+  const announcements = Array.isArray(data?.announcements) ? data.announcements : [];
+  const events = Array.isArray(data?.events) ? data.events : [];
+  const recentPhotos = Array.isArray(data?.recentPhotos) ? data.recentPhotos : [];
 
   return (
     <div className="space-y-6 sm:space-y-8 w-full max-w-full overflow-x-hidden">
@@ -297,10 +304,10 @@ export default function HomePage() {
                   <Skeleton width="60%" />
                 </div>
               ))
-            ) : data.announcements.length === 0 ? (
+            ) : announcements.length === 0 ? (
               <div className="p-6 text-center text-sm text-slate-400">Belum ada pengumuman kampus.</div>
             ) : (
-              data.announcements.map((item) => (
+              announcements.map((item) => (
                 <Link
                   key={item.id}
                   to={`/pengumuman/${item.slug}`}
@@ -360,10 +367,10 @@ export default function HomePage() {
                   </div>
                 </div>
               ))
-            ) : data.events.length === 0 ? (
+            ) : events.length === 0 ? (
               <div className="card-surface p-6 text-center text-sm text-slate-400">Tidak ada agenda mendatang.</div>
             ) : (
-              data.events.map((ev) => {
+              events.map((ev) => {
                 const dateParts = getDateParts(ev.start_date);
                 return (
                   <button
@@ -476,7 +483,7 @@ export default function HomePage() {
         </div>
 
         <PhotoMasonryGrid
-          photos={data.recentPhotos}
+          photos={recentPhotos}
           loading={loading}
           onPhotoClick={handleOpenPhoto}
           showAngkatan
@@ -489,7 +496,7 @@ export default function HomePage() {
           <PhotoLightboxModal
             open={lightboxOpen}
             photoId={selectedPhotoId}
-            photos={data.recentPhotos}
+            photos={recentPhotos}
             onClose={() => setLightboxOpen(false)}
             onNavigate={(id) => setSelectedPhotoId(id)}
             onPhotoUpdated={handlePhotoUpdated}

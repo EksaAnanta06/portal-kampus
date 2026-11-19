@@ -1,208 +1,93 @@
 // FILE: client/src/components/poker/PokerTableView.jsx
-import { useEffect, useMemo, useState } from 'react';
-import Avatar from '@mui/material/Avatar';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
-import Drawer from '@mui/material/Drawer';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
+import Slider from '@mui/material/Slider';
+import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
-import Tooltip from '@mui/material/Tooltip';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
-import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
-import VolumeOffRoundedIcon from '@mui/icons-material/VolumeOffRounded';
-import VolumeUpRoundedIcon from '@mui/icons-material/VolumeUpRounded';
-import FlagRoundedIcon from '@mui/icons-material/FlagRounded';
-import ExitToAppRoundedIcon from '@mui/icons-material/ExitToAppRounded';
-import StopCircleOutlinedIcon from '@mui/icons-material/StopCircleOutlined';
-import PersonRemoveRoundedIcon from '@mui/icons-material/PersonRemoveRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import PokerCard from './PokerCard';
-import PokerActionPanel from './PokerActionPanel';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
+import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
+import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
+import PokerViewportShell from './PokerViewportShell';
+import PokerTable from './PokerTable';
+import ActionPanel from './ActionPanel';
+import LandscapeCapsaTable from './LandscapeCapsaTable';
+import FlyingTableOverlay from './FlyingTableOverlay';
+import ThemePicker from './ThemePicker';
 import ConfirmDialog from '../common/ConfirmDialog';
+import useAnimationQueue from '../../hooks/useAnimationQueue';
+import useSfx from '../../hooks/useSfx';
+import useHandOrdering from '../../hooks/useHandOrdering';
+import { useFullscreen } from '../../utils/useFullscreen';
+import {
+  computeViewportLayoutMode,
+  formatAriaLiveAnnouncement,
+  formatCompactChips,
+  loadPokerPreferences,
+  savePokerPreferences,
+  mapSeatsRelativeToViewer,
+} from '../../utils/pokerUiHelpers';
 import { pokerApi } from '../../api/poker.api';
 import { getErrorMessage } from '../../api/axiosInstance';
 import { toast } from '../../store/useThemeStore';
-import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
-import { getInitials } from '../../utils/constants';
 
-const RANK_POWER = { 3: 0, 4: 1, 5: 2, 6: 3, 7: 4, 8: 5, 9: 6, 10: 7, 11: 8, 12: 9, 13: 10, 14: 11, 2: 12 };
+const RANK_POWER = {
+  3: 0,
+  4: 1,
+  5: 2,
+  6: 3,
+  7: 4,
+  8: 5,
+  9: 6,
+  10: 7,
+  11: 8,
+  12: 9,
+  13: 10,
+  14: 11,
+  2: 12,
+};
 const SUIT_POWER = { D: 0, C: 1, H: 2, S: 3 };
 
-function TurnCountdownBadge({ turnDeadlineAt, turnTimeoutSec, serverClockOffsetMs }) {
-  const [secLeft, setSecLeft] = useState(turnTimeoutSec);
-
-  useEffect(() => {
-    const update = () => {
-      const approxServerNow = Date.now() + (serverClockOffsetMs || 0);
-      const rem = Math.max(0, Math.ceil(((turnDeadlineAt || approxServerNow) - approxServerNow) / 1000));
-      setSecLeft(rem);
-    };
-    update();
-    const id = setInterval(update, 250);
-    return () => clearInterval(id);
-  }, [turnDeadlineAt, turnTimeoutSec, serverClockOffsetMs]);
-
-  const pct = Math.min(100, Math.max(0, (secLeft / Math.max(1, turnTimeoutSec)) * 100));
-  const stroke = secLeft <= 7 ? '#ef4444' : '#10b981';
-
-  return (
-    <div className="relative inline-flex h-8 w-8 items-center justify-center shrink-0" title={`Sisa ${secLeft} detik`}>
-      <svg viewBox="0 0 36 36" className="h-8 w-8 -rotate-90" aria-hidden="true">
-        <circle cx="18" cy="18" r="15" fill="none" stroke="rgba(148,163,184,0.28)" strokeWidth="3.5" />
-        <circle
-          cx="18"
-          cy="18"
-          r="15"
-          fill="none"
-          stroke={stroke}
-          strokeWidth="3.5"
-          strokeLinecap="round"
-          strokeDasharray="94.25"
-          strokeDashoffset={94.25 - (pct / 100) * 94.25}
-        />
-      </svg>
-      <span className="absolute text-[10px] font-black text-white">{secLeft}</span>
-    </div>
-  );
-}
-
-function OpponentSeatCard({
-  seat,
-  isTurn = false,
-  isWinner = false,
-  reaction = null,
-  turnDeadlineAt = null,
-  turnTimeoutSec = 30,
-  serverClockOffsetMs = 0,
-  canKick = false,
-  onKick,
-}) {
-  if (!seat) return null;
-
-  return (
-    <div
-      className={`relative rounded-2xl border p-2 sm:p-2.5 transition-all backdrop-blur-md ${
-        isWinner
-          ? 'border-amber-400 bg-amber-950/60 ring-2 ring-amber-400/70'
-          : isTurn
-          ? 'border-emerald-400 bg-slate-900/90 ring-2 ring-emerald-400/60 shadow-lg'
-          : 'border-white/15 bg-slate-900/75'
-      }`}
-    >
-      {reaction?.emote && (
-        <div
-          className="absolute -top-3 right-2 z-20 rounded-full bg-white px-2 py-0.5 text-sm shadow-lg ring-1 ring-emerald-500 motion-reduce:animate-none animate-bounce"
-          aria-live="polite"
-        >
-          {reaction.emote}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <Avatar
-            src={getOptimizedImageUrl(seat.avatarUrl, { width: 64, height: 64 })}
-            sx={{ width: 32, height: 32, fontSize: 12 }}
-          >
-            {seat.isBot ? <SmartToyRoundedIcon fontSize="small" /> : getInitials(seat.fullName)}
-          </Avatar>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="truncate text-xs font-bold text-white max-w-[96px] sm:max-w-[130px]">
-                {seat.fullName}
-              </span>
-              {seat.isBot && (
-                <span className="rounded bg-sky-500/30 px-1 text-[9px] font-bold text-sky-200">
-                  BOT
-                </span>
-              )}
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5 text-[11px] font-extrabold text-emerald-300">
-              <span>{seat.chips.toLocaleString('id-ID')}</span>
-              <span className="rounded-md bg-white/15 px-1.5 py-0.2 text-[10px] font-black text-amber-200">
-                {seat.cardCount} Kartu
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          {isTurn && !seat.isBot && turnDeadlineAt && (
-            <TurnCountdownBadge
-              turnDeadlineAt={turnDeadlineAt}
-              turnTimeoutSec={turnTimeoutSec}
-              serverClockOffsetMs={serverClockOffsetMs}
-            />
-          )}
-          {canKick && (
-            <Tooltip title="Keluarkan pemain">
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => onKick(seat.userId)}
-                aria-label={`Keluarkan ${seat.fullName}`}
-                className="!p-1 !text-rose-300"
-              >
-                <PersonRemoveRoundedIcon sx={{ fontSize: 16 }} />
-              </IconButton>
-            </Tooltip>
-          )}
-        </div>
-      </div>
-
-      {(seat.hasPassed || seat.isAway || !seat.connected || isWinner) && (
-        <div className="mt-1 flex flex-wrap gap-1">
-          {seat.hasPassed && (
-            <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[9px] font-bold text-slate-200">
-              LEWAT (PASS)
-            </span>
-          )}
-          {isWinner && (
-            <span className="rounded bg-amber-400 px-1.5 py-0.5 text-[9px] font-black text-slate-900">
-              MENANG RONDE
-            </span>
-          )}
-          {seat.isAway && (
-            <span className="rounded bg-orange-500/30 px-1.5 py-0.5 text-[9px] font-bold text-orange-200">
-              AWAY
-            </span>
-          )}
-          {!seat.connected && !seat.isBot && (
-            <span className="rounded bg-rose-500/30 px-1.5 py-0.5 text-[9px] font-bold text-rose-200">
-              TERPUTUS
-            </span>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
+const readViewportMetrics = () => {
+  if (typeof window === 'undefined') {
+    return { layoutMode: 'desktop', ultraCompact: false };
+  }
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  return {
+    layoutMode: computeViewportLayoutMode(w, h),
+    ultraCompact: Math.min(w, h) <= 340,
+  };
+};
 
 export default function PokerTableView({
   roomState,
   currentUserId,
   currentUserRole,
-  socketStatus,
-  serverClockOffsetMs,
-  actionLog,
-  seatReactions,
+  socketStatus = 'connected',
+  serverClockOffsetMs = 0,
+  actionLog = [],
   fourColorDeck,
   soundEnabled,
-  actionBusy,
+  actionBusy = false,
   onToggleFourColor,
   onToggleSound,
   onGameAction,
-  onSendReaction,
   onLeaveRoom,
   onEndRoom,
-  onKickPlayer,
 }) {
-  const [logOpen, setLogOpen] = useState(false);
+  const [preferences, setPreferences] = useState(() => loadPokerPreferences());
+  const [metrics, setMetrics] = useState(readViewportMetrics);
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuTab, setMenuTab] = useState('log');
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportForm, setReportForm] = useState({
@@ -215,12 +100,44 @@ export default function PokerTableView({
   const [selectedCodes, setSelectedCodes] = useState([]);
   const [hintIndex, setHintIndex] = useState(0);
   const [sortMode, setSortMode] = useState('rank');
+  const [tableMode, setTableMode] = useState('capsa');
+  const [holdemBet, setHoldemBet] = useState(40);
+
+  const animQueue = useAnimationQueue();
+  const sfx = useSfx(preferences);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => setMetrics(readViewportMetrics());
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const updatePreferences = (nextPartial) => {
+    const merged = savePokerPreferences({
+      ...preferences,
+      ...nextPartial,
+    });
+    setPreferences(merged);
+
+    if (
+      nextPartial.fourColorDeck !== undefined &&
+      Boolean(nextPartial.fourColorDeck) !== Boolean(fourColorDeck)
+    ) {
+      onToggleFourColor?.();
+    }
+    if (
+      nextPartial.sfxEnabled !== undefined &&
+      Boolean(nextPartial.sfxEnabled) !== Boolean(soundEnabled)
+    ) {
+      onToggleSound?.();
+    }
+  };
 
   const { roomId, room, table, viewerSeat, myHoleCards, validActions } = roomState;
   const seats = table?.seats || [];
   const isHost = room?.hostUserId === currentUserId;
   const isStaff = ['admin', 'moderator'].includes(currentUserRole);
-  const mySeat = seats.find((s) => s.userId === currentUserId) || null;
   const reportableHumans = seats.filter((s) => s.userId !== currentUserId && !s.isBot);
 
   const sortedMyCards = useMemo(() => {
@@ -241,46 +158,106 @@ export default function PokerTableView({
     });
   }, [myHoleCards, sortMode]);
 
-  // Reset pilihan bila kartu tangan berubah atau ronde baru dimulai
   useEffect(() => {
     const owned = new Set((myHoleCards || []).map((c) => c.code));
     setSelectedCodes((prev) => prev.filter((code) => owned.has(code)));
     setHintIndex(0);
   }, [myHoleCards, room?.handNumber, table?.currentTurnSeat]);
 
-  const relativeSeatMap = useMemo(() => {
-    const base = viewerSeat ?? 0;
-    const byOffset = (offset) => seats.find((s) => s.seatIndex === (base + offset) % 4) || null;
-    return {
-      bottom: byOffset(0),
-      left: byOffset(1),
-      top: byOffset(2),
-      right: byOffset(3),
-    };
-  }, [seats, viewerSeat]);
-
   const activeTurnSeatObj = seats.find((s) => s.seatIndex === table?.currentTurnSeat);
   const isMyTurn = viewerSeat !== null && table?.currentTurnSeat === viewerSeat;
 
-  const selectionSummary = useMemo(() => {
-    if (selectedCodes.length === 0) return null;
-    const matchedHint = (validActions?.suggestedMoves || []).find(
-      (m) =>
-        m.codes.length === selectedCodes.length &&
-        selectedCodes.every((c) => m.codes.includes(c))
-    );
-    if (matchedHint) return matchedHint.label;
-    return `${selectedCodes.length} kartu dipilih`;
-  }, [selectedCodes, validActions?.suggestedMoves]);
+  const handOrder = useHandOrdering(
+    tableMode === 'holdem' ? sortedMyCards.slice(0, 2) : sortedMyCards,
+    sfx
+  );
 
-  const liveAnnouncement = useMemo(() => {
-    if (table?.lastHandResult) {
-      return `Ronde #${table.lastHandResult.handNumber} dimenangkan oleh ${table.lastHandResult.winnerName}.`;
+  // Animasi singkat (<= 220ms) saat ronde baru
+  const prevHandNumberRef = useRef(room?.handNumber);
+  useEffect(() => {
+    if (room?.handNumber && room.handNumber !== prevHandNumberRef.current) {
+      prevHandNumberRef.current = room.handNumber;
+      animQueue.enqueueSteps([{ type: 'deal', durationMs: 220 }], { replaceStale: true });
+      sfx.playDeal();
     }
-    if (isMyTurn) return 'Giliran Anda di meja Capsa Banting.';
-    if (activeTurnSeatObj) return `Giliran ${activeTurnSeatObj.fullName}.`;
-    return '';
-  }, [table?.lastHandResult, isMyTurn, activeTurnSeatObj]);
+  }, [room?.handNumber, animQueue, sfx]);
+
+  // Animasi singkat (<= 200ms) saat kartu tengah berubah
+  const prevPlayKeyRef = useRef('');
+  useEffect(() => {
+    const playKey = table?.currentPlay
+      ? `${table.currentPlay.seatIndex}-${(table.currentPlay.cards || []).map((c) => c.code).join(',')}`
+      : '';
+    if (playKey && playKey !== prevPlayKeyRef.current) {
+      prevPlayKeyRef.current = playKey;
+      animQueue.enqueueSteps([{ type: 'community_flip', durationMs: 200 }], { replaceStale: true });
+      sfx.playFlip();
+    } else if (!playKey) {
+      prevPlayKeyRef.current = '';
+    }
+  }, [table?.currentPlay, animQueue, sfx]);
+
+  // Suara & getaran saat giliran tiba
+  const prevIsMyTurnRef = useRef(isMyTurn);
+  useEffect(() => {
+    const wasMyTurn = prevIsMyTurnRef.current;
+    prevIsMyTurnRef.current = isMyTurn;
+    if (!wasMyTurn && isMyTurn) {
+      sfx.playTurn();
+      sfx.triggerTurnHaptic(28);
+    }
+  }, [isMyTurn, sfx]);
+
+  const relSeats = useMemo(
+    () => mapSeatsRelativeToViewer(seats, viewerSeat ?? 0, 4),
+    [seats, viewerSeat]
+  );
+
+  // Animasi selebrasi & lemparan pot chip saat ronde dimenangkan
+  const prevLastHandResultRef = useRef(null);
+  useEffect(() => {
+    const res = table?.lastHandResult;
+    if (res && res !== prevLastHandResultRef.current) {
+      prevLastHandResultRef.current = res;
+      const winnerSeat = res.winnerSeat;
+      let winnerSlot = 'bottom';
+      if (winnerSeat !== undefined && winnerSeat !== null) {
+        if (winnerSeat === relSeats.top?.seatIndex) winnerSlot = 'top';
+        else if (winnerSeat === relSeats.left?.seatIndex) winnerSlot = 'left';
+        else if (winnerSeat === relSeats.right?.seatIndex) winnerSlot = 'right';
+      }
+      animQueue.enqueueSteps([
+        {
+          type: 'pot_to_winner',
+          durationMs: 700,
+          payload: {
+            winnerSlot,
+            totalWon: res.totalWon || (room?.config?.baseStake || 10) * 3,
+          },
+        },
+      ]);
+      sfx.playWin();
+      sfx.triggerTurnHaptic(40);
+    }
+  }, [table?.lastHandResult, relSeats, room?.config?.baseStake, animQueue, sfx]);
+
+  const liveAnnouncement = useMemo(
+    () =>
+      formatAriaLiveAnnouncement({
+        lastHandResult: table?.lastHandResult,
+        currentPlay: table?.currentPlay,
+        isMyTurn,
+        activeTurnName: activeTurnSeatObj?.fullName || '',
+        mustIncludeThreeDiamond: Boolean(table?.mustIncludeThreeDiamond),
+      }),
+    [
+      table?.lastHandResult,
+      table?.currentPlay,
+      isMyTurn,
+      activeTurnSeatObj?.fullName,
+      table?.mustIncludeThreeDiamond,
+    ]
+  );
 
   const handleToggleCard = (code) => {
     setSelectedCodes((prev) =>
@@ -300,7 +277,7 @@ export default function PokerTableView({
       });
       setSelectedCodes([]);
     } catch (err) {
-      toast.error(err.message || 'Kombinasi kartu belum sah atau kurang tinggi.');
+      toast.error(err.message || 'Kombinasi kartu belum sah.');
     }
   };
 
@@ -321,12 +298,26 @@ export default function PokerTableView({
   const handleHint = () => {
     const hints = validActions?.suggestedMoves || [];
     if (hints.length === 0) {
-      toast.info('Tidak ada kombinasi yang bisa membanting kartu meja. Tekan Lewat (Pass).');
+      toast.info('Tidak ada kombinasi yang bisa membanting kartu meja.');
       return;
     }
     const chosen = hints[hintIndex % hints.length];
     setSelectedCodes(chosen.codes);
     setHintIndex((i) => i + 1);
+  };
+
+  const handleCycleSortMode = () => {
+    setSortMode((prev) => {
+      if (prev === 'rank') return 'suit';
+      if (prev === 'suit') {
+        handOrder.handleAutoOrder();
+        return 'auto';
+      }
+      handOrder.handleResetOrder();
+      return 'rank';
+    });
+    sfx.playCardSnap();
+    sfx.triggerCardSnapHaptic(15);
   };
 
   const handleSubmitReport = async (e) => {
@@ -343,7 +334,7 @@ export default function PokerTableView({
         reason: reportForm.reason,
         description: reportForm.description.trim() || undefined,
       });
-      toast.success('Laporan berhasil dikirim ke moderator.');
+      toast.success('Laporan dikirim.');
       setReportOpen(false);
       setReportForm({ reportedUserId: '', reason: 'harassment', description: '' });
     } catch (err) {
@@ -353,291 +344,420 @@ export default function PokerTableView({
     }
   };
 
-  const canKickSeat = (seat) => {
-    if (!isHost || !seat || seat.isBot || seat.userId === currentUserId) return false;
-    return room?.phase === 'antar_tangan' || seat.isAway || !seat.connected;
-  };
-
   const winnerSeatIndex = table?.lastHandResult?.winnerSeat;
+  const statusDotColor =
+    socketStatus === 'connected'
+      ? 'bg-emerald-400'
+      : socketStatus === 'reconnecting'
+      ? 'bg-amber-400'
+      : 'bg-rose-500';
+
+  const showdownState = table?.lastHandResult
+    ? {
+        open: true,
+        winnerName: table.lastHandResult.winnerName,
+        handName: `Pemenang Ronde #${table.lastHandResult.handNumber}`,
+        potAwarded: table.lastHandResult.totalWon,
+        cards: table?.currentPlay?.cards || [],
+      }
+    : null;
 
   return (
-    <div className="flex min-h-[calc(100dvh-5.5rem)] lg:min-h-[calc(100dvh-6.2rem)] flex-col justify-between gap-2 overflow-hidden">
-      <span className="sr-only" aria-live="polite">
+    <PokerViewportShell theme={preferences.tableTheme}>
+      <span className="sr-only" aria-live="polite" aria-atomic="true">
         {liveAnnouncement}
       </span>
 
-      {/* Top Bar Meja Ringkas */}
-      <div className="flex flex-wrap items-center justify-between gap-1.5 rounded-2xl border border-slate-200 bg-white/90 px-3 py-1.5 shadow-sm dark:border-slate-700 dark:bg-navy-800/90">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="font-mono text-xs sm:text-sm font-black tracking-wider text-slate-900 dark:text-white">
-            #{roomId}
-          </span>
-          <Chip
-            size="small"
-            color={socketStatus === 'connected' ? 'success' : 'warning'}
-            label={
-              socketStatus === 'connected'
-                ? 'Terhubung'
-                : socketStatus === 'reconnecting'
-                ? 'Menyambung Ulang'
-                : 'Terputus'
+      {/* Tampilan Khusus Capsa Banting (Sesuai Referensi UI Otentik Meja Oval Hijau Kayu di Portrait, Landscape & Desktop) */}
+      {tableMode === 'capsa' ? (
+        <>
+          <LandscapeCapsaTable
+            seats={seats}
+            viewerSeat={viewerSeat ?? 0}
+            currentTurnSeat={table?.currentTurnSeat ?? null}
+            starterSeat={table?.starterSeat ?? null}
+            winnerSeats={
+              winnerSeatIndex !== undefined && winnerSeatIndex !== null ? [winnerSeatIndex] : []
             }
-            className="!h-5 !text-[10px]"
+            lastHandResult={table?.lastHandResult || null}
+            turnDeadlineAt={table?.turnDeadlineAt || null}
+            turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
+            serverClockOffsetMs={serverClockOffsetMs || 0}
+            room={room}
+            myHoleCards={sortedMyCards}
+            selectedCodes={selectedCodes}
+            onToggleCard={handleToggleCard}
+            onSelectCodes={(codes) => setSelectedCodes(codes)}
+            validActions={validActions}
+            actionBusy={actionBusy}
+            onPlaySelected={handlePlaySelected}
+            onPass={handlePass}
+            onAutoOrder={handOrder.handleAutoOrder}
+            onResetOrder={handOrder.handleResetOrder}
+            currentPlay={table?.currentPlay || null}
+            mustIncludeThreeDiamond={Boolean(table?.mustIncludeThreeDiamond)}
+            fourColorDeck={Boolean(preferences.fourColorDeck)}
+            cardBackDesign={preferences.cardBack}
+            activeAnimationStep={animQueue.activeStep}
+            reducedMotion={animQueue.reducedMotion}
+            sfx={sfx}
+            onOpenMenu={() => setMenuOpen(true)}
+            onOpenSettings={() => {
+              setMenuTab('settings');
+              setMenuOpen(true);
+            }}
+            onOpenHelp={() => {
+              setMenuTab('ranks');
+              setMenuOpen(true);
+            }}
+            sortMode={sortMode}
+            onCycleSortMode={handleCycleSortMode}
+            orderedCards={handOrder.orderedCards}
+            dimmedCodes={handOrder.dimmedCodes}
+            comboLabel={handOrder.comboLabel}
+            onReorder={handOrder.handleReorder}
+            layoutMode={metrics.layoutMode}
           />
-          <span className="hidden sm:inline text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-            Ronde #{room?.handNumber} · Tarif {room?.config?.baseStake || 10} chip/kartu
-          </span>
-        </div>
+          <FlyingTableOverlay
+            activeStep={animQueue.activeStep}
+            animationSpeed={preferences.animationSpeed}
+            reducedMotion={animQueue.reducedMotion}
+            cardBackDesign={preferences.cardBack}
+            fourColorDeck={Boolean(preferences.fourColorDeck)}
+            onFastForward={animQueue.fastForwardAll}
+          />
+        </>
+      ) : (
+        /* 5-Zona Proporsional (Nol Scroll di Portrait & Hold'em) */
+        <div
+          className={`poker-table-zones ${
+            metrics.layoutMode === 'mobile_landscape' ? 'is-landscape' : ''
+          }`}
+        >
+          {/* ZONA 1 (≤ 8%): Bar Atas Tipis — 1 Ikon Menu (Kiri), Ronde/Pot (Tengah), 1 Titik Koneksi (Kanan) */}
+          <header className="flex items-center justify-between px-1 min-h-0">
+            <IconButton
+              onClick={() => setMenuOpen(true)}
+              aria-label="Buka menu meja"
+              className="!min-h-[44px] !min-w-[44px] !text-slate-200"
+            >
+              <MenuRoundedIcon fontSize="small" />
+            </IconButton>
 
-        <div className="flex items-center gap-1">
-          <Tooltip title={fourColorDeck ? 'Pakai 2 Warna Standar' : 'Mode 4 Warna (Buta Warna)'}>
-            <IconButton
-              size="small"
-              onClick={onToggleFourColor}
-              color={fourColorDeck ? 'success' : 'default'}
-              aria-label="Toggle 4 warna kartu"
-              className="!min-h-[40px] !min-w-[40px]"
-            >
-              <PaletteRoundedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title={soundEnabled ? 'Matikan Suara' : 'Nyalakan Suara Giliran'}>
-            <IconButton
-              size="small"
-              onClick={onToggleSound}
-              aria-label="Toggle suara"
-              className="!min-h-[40px] !min-w-[40px]"
-            >
-              {soundEnabled ? <VolumeUpRoundedIcon fontSize="small" /> : <VolumeOffRoundedIcon fontSize="small" />}
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Log Aksi Singkat">
-            <IconButton
-              size="small"
-              onClick={() => setLogOpen(true)}
-              aria-label="Buka log aksi"
-              className="!min-h-[40px] !min-w-[40px]"
-            >
-              <HistoryRoundedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          {reportableHumans.length > 0 && (
-            <Tooltip title="Laporkan Pemain">
-              <IconButton
-                size="small"
-                onClick={() => setReportOpen(true)}
-                aria-label="Laporkan pemain"
-                className="!min-h-[40px] !min-w-[40px]"
-              >
-                <FlagRoundedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          {(isHost || isStaff) && (
-            <Tooltip title="Akhiri Meja">
-              <IconButton
-                size="small"
-                color="warning"
-                onClick={() => onEndRoom()}
-                aria-label="Akhiri permainan"
-                className="!min-h-[40px] !min-w-[40px]"
-              >
-                <StopCircleOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          <Tooltip title="Keluar dari Meja">
-            <IconButton
-              size="small"
-              color="error"
-              onClick={() => setLeaveConfirmOpen(true)}
-              aria-label="Keluar room"
-              className="!min-h-[40px] !min-w-[40px]"
-            >
-              <ExitToAppRoundedIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </div>
-      </div>
+            <span className="poker-text-sm font-bold poker-tabular text-slate-300 truncate">
+              Ronde #{room?.handNumber || 1} · Tarif {room?.config?.baseStake || 10}
+            </span>
 
-      {/* Meja Hijau Capsa Banting */}
-      <div className="relative flex-1 rounded-3xl border-4 border-emerald-950/90 bg-gradient-to-br from-emerald-900 via-teal-950 to-slate-900 p-2.5 sm:p-4 shadow-2xl flex flex-col justify-between gap-2.5">
-        {/* Lawan Atas */}
-        <div className="mx-auto w-full max-w-xs">
-          <OpponentSeatCard
-            seat={relativeSeatMap.top}
-            isTurn={relativeSeatMap.top?.seatIndex === table?.currentTurnSeat}
-            isWinner={relativeSeatMap.top?.seatIndex === winnerSeatIndex}
-            reaction={seatReactions[relativeSeatMap.top?.seatIndex]}
-            turnDeadlineAt={table?.turnDeadlineAt}
+            <span
+              className={`h-2.5 w-2.5 rounded-full shrink-0 mr-2 ${statusDotColor}`}
+              role="status"
+              aria-label={socketStatus === 'connected' ? 'Terhubung' : 'Menyambung ulang'}
+            />
+          </header>
+
+          {/* ZONA 2, 3, dan 4: Lawan Horizontal, 5 Slot Tengah + Pot, Kartu Pemain + Chip */}
+          <PokerTable
+            theme={preferences.tableTheme}
+            cardBackDesign={preferences.cardBack}
+            fourColorDeck={Boolean(preferences.fourColorDeck)}
+            layoutMode={metrics.layoutMode}
+            ultraCompact={metrics.ultraCompact}
+            seats={seats}
+            viewerSeat={viewerSeat ?? 0}
+            currentTurnSeat={table?.currentTurnSeat ?? null}
+            starterSeat={table?.starterSeat ?? null}
+            winnerSeats={
+              winnerSeatIndex !== undefined && winnerSeatIndex !== null ? [winnerSeatIndex] : []
+            }
+            lastHandResult={table?.lastHandResult || null}
+            turnDeadlineAt={table?.turnDeadlineAt || null}
             turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
             serverClockOffsetMs={serverClockOffsetMs}
-            canKick={canKickSeat(relativeSeatMap.top)}
-            onKick={onKickPlayer}
+            currentPlay={table?.currentPlay || null}
+            mustIncludeThreeDiamond={Boolean(table?.mustIncludeThreeDiamond)}
+            myHoleCards={handOrder.orderedCards}
+            selectedCodes={selectedCodes}
+            onToggleCard={handleToggleCard}
+            activeAnimationStep={animQueue.activeStep}
+            reducedMotion={animQueue.reducedMotion}
+            showdownState={showdownState}
+            sfx={sfx}
+            orderedCards={handOrder.orderedCards}
+            dimmedCodes={handOrder.dimmedCodes}
+            comboLabel={handOrder.comboLabel}
+            onReorder={handOrder.handleReorder}
+            onAutoOrder={handOrder.handleAutoOrder}
+            onResetOrder={handOrder.handleResetOrder}
           />
-        </div>
 
-        {/* Baris Tengah: Kiri + Area Banting Tengah + Kanan */}
-        <div className="grid grid-cols-1 sm:grid-cols-12 items-center gap-2">
-          <div className="sm:col-span-3">
-            <OpponentSeatCard
-              seat={relativeSeatMap.left}
-              isTurn={relativeSeatMap.left?.seatIndex === table?.currentTurnSeat}
-              isWinner={relativeSeatMap.left?.seatIndex === winnerSeatIndex}
-              reaction={seatReactions[relativeSeatMap.left?.seatIndex]}
-              turnDeadlineAt={table?.turnDeadlineAt}
-              turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-              serverClockOffsetMs={serverClockOffsetMs}
-              canKick={canKickSeat(relativeSeatMap.left)}
-              onKick={onKickPlayer}
-            />
-          </div>
+          {/* Lapisan Animasi Terpisah (Parabolic Arc Lemparan Kartu, Chip & Pot) */}
+          <FlyingTableOverlay
+            activeStep={animQueue.activeStep}
+            animationSpeed={preferences.animationSpeed}
+            reducedMotion={animQueue.reducedMotion}
+            cardBackDesign={preferences.cardBack}
+            fourColorDeck={Boolean(preferences.fourColorDeck)}
+            onFastForward={animQueue.fastForwardAll}
+          />
 
-          {/* Tengah: Kartu yang sedang di Meja */}
-          <div className="sm:col-span-6 flex flex-col items-center justify-center gap-2 py-2 min-h-[120px]">
-            {table?.lastHandResult ? (
-              <div className="w-full max-w-sm rounded-2xl bg-black/55 border border-amber-400/50 p-3 text-center space-y-1.5">
-                <div className="text-xs font-black text-amber-300 uppercase tracking-wider">
-                  {table.lastHandResult.winnerName} Menang Ronde #{table.lastHandResult.handNumber} (+
-                  {table.lastHandResult.totalWon} chip)
-                </div>
-                <div className="space-y-0.5 text-[11px] text-slate-200">
-                  {table.lastHandResult.penalties.map((pen) => (
-                    <div key={pen.seatIndex} className="flex justify-between gap-2">
-                      <span className="truncate">{pen.fullName}</span>
-                      <span className="text-rose-300 shrink-0">
-                        -{pen.penaltyAmount} chip ({pen.remainingCount} kartu ×{pen.multiplier})
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : table?.currentPlay ? (
-              <div className="flex flex-col items-center gap-1.5">
-                <span className="rounded-full bg-black/45 px-3 py-0.5 text-[11px] font-bold text-amber-300 border border-amber-400/30">
-                  {table.currentPlay.label} · {table.currentPlay.fullName}
-                </span>
-                <div className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5">
-                  {table.currentPlay.cards.map((c) => (
-                    <PokerCard
-                      key={c.code}
-                      card={c}
-                      size="md"
-                      fourColor={fourColorDeck}
-                      highlight={table.currentPlay.isBomb}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-2xl border border-dashed border-white/25 bg-black/25 px-4 py-3 text-center text-xs font-semibold text-emerald-100">
-                {table?.mustIncludeThreeDiamond
-                  ? 'Ronde #1 Pembuka — Banting kombinasi yang menyertakan 3♦'
-                  : 'Meja Kosong — Silakan banting 1, 2, 3, atau 5 kartu kombinasi'}
-              </div>
-            )}
-          </div>
-
-          <div className="sm:col-span-3">
-            <OpponentSeatCard
-              seat={relativeSeatMap.right}
-              isTurn={relativeSeatMap.right?.seatIndex === table?.currentTurnSeat}
-              isWinner={relativeSeatMap.right?.seatIndex === winnerSeatIndex}
-              reaction={seatReactions[relativeSeatMap.right?.seatIndex]}
-              turnDeadlineAt={table?.turnDeadlineAt}
-              turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-              serverClockOffsetMs={serverClockOffsetMs}
-              canKick={canKickSeat(relativeSeatMap.right)}
-              onKick={onKickPlayer}
+          {/* ZONA 5 (≈ 20%): Panel Aksi Jempol (Maks 3 Tombol Saat Giliran, 1 Baris Saat Menunggu) */}
+          <div className="poker-zone-action min-h-0">
+            <ActionPanel
+              mode={tableMode}
+              layoutMode={metrics.layoutMode}
+              validActions={validActions}
+              isMyTurn={isMyTurn}
+              phase={room?.phase}
+              activeTurnName={activeTurnSeatObj?.fullName || ''}
+              selectedCodes={selectedCodes}
+              actionBusy={actionBusy}
+              onPlaySelected={handlePlaySelected}
+              onPass={handlePass}
+              onHint={handleHint}
+              onAutoOrder={handOrder.handleAutoOrder}
+              onResetOrder={handOrder.handleResetOrder}
+              autoOrderLabel={handOrder.comboLabel}
+              holdemState={{
+                canFold: true,
+                canCheck: Boolean(validActions?.canPass),
+                canCall: true,
+                callAmount: room?.config?.baseStake || 20,
+                canBet: true,
+                canRaise: true,
+                minBetOrRaiseTo: (room?.config?.baseStake || 20) * 2,
+                maxBetOrRaiseTo: 1000,
+                totalPot: (room?.config?.baseStake || 20) * 4,
+                step: 5,
+              }}
+              betAmount={holdemBet}
+              onBetAmountChange={setHoldemBet}
+              onFold={handlePass}
+              onCheck={handlePass}
+              onCall={handlePass}
+              onBetOrRaise={() => handlePlaySelected()}
             />
           </div>
         </div>
+      )}
 
-        {/* Area Kartu Sendiri (Bawah — 13 Kartu Interaktif) */}
-        <div className="space-y-2 pt-1">
-          {mySeat && (
-            <div className="flex items-center justify-between gap-2 px-1">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="truncate text-xs font-extrabold text-white">
-                  {mySeat.fullName} (Kamu)
-                </span>
-                <span className="rounded-md bg-emerald-500/25 px-2 py-0.5 text-[11px] font-black text-emerald-200">
-                  {mySeat.chips.toLocaleString('id-ID')} chip · {sortedMyCards.length} kartu
-                </span>
-                {mySeat.hasPassed && (
-                  <span className="rounded bg-slate-700 px-1.5 py-0.5 text-[10px] font-bold text-slate-200">
-                    LEWAT
-                  </span>
-                )}
-              </div>
-              {isMyTurn && table?.turnDeadlineAt && (
-                <TurnCountdownBadge
-                  turnDeadlineAt={table.turnDeadlineAt}
-                  turnTimeoutSec={room?.config?.turnTimeoutSec || 30}
-                  serverClockOffsetMs={serverClockOffsetMs}
-                />
+      {/* SATU MENU SEKUNDER (Bottom Sheet): Info Room, Log, Cheat Sheet, Pengaturan, Keluar */}
+      <Drawer
+        anchor="bottom"
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        PaperProps={{
+          className:
+            '!mx-auto !w-full !max-w-lg !rounded-t-2xl !border-t !border-slate-700 !bg-[#131d22] !text-slate-100 !max-h-[84dvh]',
+        }}
+      >
+        <div className="p-4 space-y-3 overflow-y-auto pb-[calc(1rem+env(safe-area-inset-bottom))]">
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="poker-text-sm text-slate-400 font-mono">Room #{roomId}</span>
+              <h2 className="m-0 poker-text-md font-extrabold text-white">Menu Meja</h2>
+            </div>
+            <IconButton
+              onClick={() => setMenuOpen(false)}
+              aria-label="Tutup menu meja"
+              className="!min-h-[44px] !min-w-[44px] !text-slate-300"
+            >
+              <CloseRoundedIcon fontSize="small" />
+            </IconButton>
+          </div>
+
+          {/* Tab Navigasi Menu Sekunder */}
+          <div className="grid grid-cols-3 gap-1.5" role="tablist">
+            {[
+              { id: 'log', label: 'Log Aksi' },
+              { id: 'ranks', label: 'Peringkat' },
+              { id: 'settings', label: 'Pengaturan' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                role="tab"
+                aria-selected={menuTab === t.id}
+                onClick={() => setMenuTab(t.id)}
+                className={`min-h-[44px] rounded-xl border poker-text-sm font-bold transition ${
+                  menuTab === t.id
+                    ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200'
+                    : 'border-slate-700 bg-slate-900/50 text-slate-300'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {menuTab === 'log' && (
+            <div className="poker-flat-elevated p-3 max-h-[38dvh] overflow-y-auto space-y-1.5">
+              {actionLog.length === 0 ? (
+                <p className="m-0 py-4 text-center poker-text-sm text-slate-400">
+                  Belum ada catatan aksi.
+                </p>
+              ) : (
+                actionLog.slice(0, 20).map((item, idx) => (
+                  <div
+                    key={item.id || idx}
+                    className="border-b border-slate-800 pb-1.5 last:border-b-0 poker-text-sm text-slate-200"
+                  >
+                    {item.text || String(item)}
+                  </div>
+                ))
               )}
             </div>
           )}
 
-          {/* Deretan Kartu di Tangan (mudah dipilih di layar 360px maupun desktop) */}
-          <div
-            className="flex flex-wrap items-center justify-center gap-1 sm:gap-1.5 pt-2 pb-1 px-1"
-            role="group"
-            aria-label="Kartu di tangan Anda"
-          >
-            {sortedMyCards.map((c) => (
-              <PokerCard
-                key={c.code}
-                card={c}
-                size="lg"
-                fourColor={fourColorDeck}
-                selected={selectedCodes.includes(c.code)}
-                onClick={() => handleToggleCard(c.code)}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Panel Aksi Big 2 Offline */}
-      <PokerActionPanel
-        validActions={validActions}
-        isMyTurn={isMyTurn}
-        phase={room?.phase}
-        activeTurnName={activeTurnSeatObj?.fullName || ''}
-        selectedCodes={selectedCodes}
-        selectionSummary={selectionSummary}
-        sortMode={sortMode}
-        actionBusy={actionBusy}
-        onPlaySelected={handlePlaySelected}
-        onPass={handlePass}
-        onHint={handleHint}
-        onClearSelection={() => setSelectedCodes([])}
-        onToggleSortMode={() => setSortMode((m) => (m === 'rank' ? 'suit' : 'rank'))}
-        onSendReaction={onSendReaction}
-      />
-
-      {/* Drawer Log Aksi */}
-      <Drawer anchor="right" open={logOpen} onClose={() => setLogOpen(false)}>
-        <div className="w-72 sm:w-80 p-4 space-y-3 bg-white dark:bg-navy-800 h-full overflow-y-auto">
-          <h3 className="m-0 text-sm font-extrabold text-slate-900 dark:text-white">
-            Log Aksi Meja
-          </h3>
-          {actionLog.length === 0 ? (
-            <p className="text-xs text-slate-400">Belum ada catatan aksi.</p>
-          ) : (
-            <div className="space-y-2">
-              {actionLog.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-slate-100 bg-slate-50 px-2.5 py-2 text-xs text-slate-700 dark:border-slate-700 dark:bg-navy dark:text-slate-200"
-                >
-                  {item.text}
-                </div>
-              ))}
+          {menuTab === 'ranks' && (
+            <div className="poker-flat-elevated p-3 space-y-1.5 poker-text-sm text-slate-200">
+              <div className="font-bold text-amber-400">Panduan Peringkat Tangan</div>
+              <div>1. Royal / Straight Flush — 5 berurutan satu kembang</div>
+              <div>2. Four of a Kind (Bom) — 4 kartu angka sama</div>
+              <div>3. Full House (Polo) — 3 angka sama + Pair</div>
+              <div>4. Flush (Warna) — 5 kartu satu kembang</div>
+              <div>5. Straight (Seri) — 5 kartu angka berurutan</div>
+              <div>6. Three of a Kind, Pair, High Card (Single)</div>
             </div>
           )}
+
+          {menuTab === 'settings' && (
+            <div className="space-y-3">
+              {/* Urutan kartu & Mode Panel */}
+              <div className="poker-flat-elevated p-3 flex items-center justify-between gap-2">
+                <span className="poker-text-sm font-bold">Urutan Kartu Tangan</span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() => setSortMode((m) => (m === 'rank' ? 'suit' : 'rank'))}
+                  className="!min-h-[44px] !rounded-xl !border-slate-600 poker-text-sm !normal-case"
+                >
+                  {sortMode === 'rank' ? 'Berdasarkan Angka' : 'Berdasarkan Kembang'}
+                </Button>
+              </div>
+
+              <div className="poker-flat-elevated p-3 flex items-center justify-between gap-2">
+                <span className="poker-text-sm font-bold">Gaya Panel Aksi</span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  onClick={() =>
+                    setTableMode((m) => (m === 'capsa' ? 'holdem' : 'capsa'))
+                  }
+                  className="!min-h-[44px] !rounded-xl !border-slate-600 poker-text-sm !normal-case"
+                >
+                  {tableMode === 'holdem' ? "Hold'em (Fold/Call/Raise)" : 'Capsa (Lewat/Saran/Banting)'}
+                </Button>
+              </div>
+
+              {/* Layar Penuh (Hilangkan Address Bar Chrome Android) */}
+              <div className="poker-flat-elevated p-3 flex items-center justify-between gap-2">
+                <div>
+                  <div className="poker-text-sm font-bold">Layar Penuh (Full Screen)</div>
+                  <div className="text-xs text-slate-400">Hilangkan address bar & tombol navigasi HP</div>
+                </div>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="inherit"
+                  onClick={toggleFullscreen}
+                  startIcon={isFullscreen ? <FullscreenExitRoundedIcon /> : <FullscreenRoundedIcon />}
+                  className="!min-h-[44px] !rounded-xl !border-slate-600 poker-text-sm !normal-case"
+                >
+                  {isFullscreen ? 'Keluar' : 'Layar Penuh'}
+                </Button>
+              </div>
+
+              {/* Audio & Haptik */}
+              <div className="poker-flat-elevated p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="poker-text-sm font-bold">Efek Suara (Default Mati)</span>
+                  <Switch
+                    color="success"
+                    checked={Boolean(preferences.sfxEnabled)}
+                    onChange={(e) => updatePreferences({ sfxEnabled: e.target.checked })}
+                    inputProps={{ 'aria-label': 'Efek suara' }}
+                  />
+                </div>
+                {preferences.sfxEnabled && (
+                  <div className="px-1">
+                    <Slider
+                      size="small"
+                      color="success"
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      value={Number(preferences.sfxVolume) || 0.65}
+                      onChange={(_e, v) => updatePreferences({ sfxVolume: Number(v) })}
+                      aria-label="Volume suara"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-slate-800 pt-2">
+                  <span className="poker-text-sm font-bold">Getaran Giliran</span>
+                  <Switch
+                    color="warning"
+                    checked={Boolean(preferences.hapticsEnabled)}
+                    onChange={(e) => updatePreferences({ hapticsEnabled: e.target.checked })}
+                    inputProps={{ 'aria-label': 'Getaran giliran' }}
+                  />
+                </div>
+              </div>
+
+              <ThemePicker
+                tableTheme={preferences.tableTheme}
+                cardBack={preferences.cardBack}
+                fourColorDeck={preferences.fourColorDeck}
+                animationSpeed={preferences.animationSpeed}
+                onChangeTheme={(tableTheme) => updatePreferences({ tableTheme })}
+                onChangeCardBack={(cardBack) => updatePreferences({ cardBack })}
+                onChangeFourColorDeck={(fourColorDeck) => updatePreferences({ fourColorDeck })}
+                onChangeAnimationSpeed={(animationSpeed) => updatePreferences({ animationSpeed })}
+              />
+            </div>
+          )}
+
+          {/* Aksi Room di Bawah Menu Sheet */}
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-800">
+            {reportableHumans.length > 0 && (
+              <Button
+                variant="outlined"
+                color="inherit"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setReportOpen(true);
+                }}
+                className="!min-h-[44px] flex-1 !rounded-xl !border-slate-600 poker-text-sm !normal-case"
+              >
+                Laporkan
+              </Button>
+            )}
+            {(isHost || isStaff) && (
+              <Button
+                variant="outlined"
+                color="warning"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onEndRoom?.();
+                }}
+                className="!min-h-[44px] flex-1 !rounded-xl poker-text-sm !normal-case"
+              >
+                Akhiri Meja
+              </Button>
+            )}
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => {
+                setMenuOpen(false);
+                setLeaveConfirmOpen(true);
+              }}
+              className="!min-h-[44px] flex-1 !rounded-xl poker-text-sm !normal-case"
+            >
+              Keluar Meja
+            </Button>
+          </div>
         </div>
       </Drawer>
 
@@ -665,27 +785,30 @@ export default function PokerTableView({
               value={reportForm.reason}
               onChange={(e) => setReportForm({ ...reportForm, reason: e.target.value })}
             >
-              <MenuItem value="harassment">Perilaku Mengganggu / Kasar</MenuItem>
+              <MenuItem value="harassment">Perilaku Mengganggu</MenuItem>
               <MenuItem value="inappropriate">Nama / Avatar Tidak Pantas</MenuItem>
-              <MenuItem value="spam">Spam Reaksi</MenuItem>
+              <MenuItem value="spam">Spam</MenuItem>
               <MenuItem value="cheating">Dugaan Kecurangan</MenuItem>
               <MenuItem value="other">Lainnya</MenuItem>
             </TextField>
-            <TextField
-              label="Keterangan Tambahan (Opsional)"
-              multiline
-              minRows={2}
-              value={reportForm.description}
-              onChange={(e) => setReportForm({ ...reportForm, description: e.target.value })}
-              inputProps={{ maxLength: 500 }}
-            />
           </DialogContent>
           <DialogActions>
-            <Button color="inherit" onClick={() => setReportOpen(false)} disabled={reporting}>
+            <Button
+              color="inherit"
+              onClick={() => setReportOpen(false)}
+              disabled={reporting}
+              className="!min-h-[44px]"
+            >
               Batal
             </Button>
-            <Button type="submit" variant="contained" color="error" disabled={reporting}>
-              {reporting ? 'Mengirim...' : 'Kirim Laporan'}
+            <Button
+              type="submit"
+              variant="contained"
+              color="error"
+              disabled={reporting}
+              className="!min-h-[44px]"
+            >
+              Kirim
             </Button>
           </DialogActions>
         </form>
@@ -693,8 +816,8 @@ export default function PokerTableView({
 
       <ConfirmDialog
         open={leaveConfirmOpen}
-        title="Keluar dari Meja Capsa Banting?"
-        message="Jika Anda keluar di tengah permainan saat mabar, kursi Anda diambil alih sementara oleh Bot agar ronde tetap berjalan adil."
+        title="Keluar dari Meja?"
+        message="Jika Anda keluar di tengah permainan, kursi Anda diambil alih oleh Bot sampai ronde selesai."
         confirmText="Ya, Keluar"
         onClose={() => setLeaveConfirmOpen(false)}
         onConfirm={() => {
@@ -702,6 +825,6 @@ export default function PokerTableView({
           onLeaveRoom();
         }}
       />
-    </div>
+    </PokerViewportShell>
   );
 }

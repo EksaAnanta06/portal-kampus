@@ -1,32 +1,32 @@
 // FILE: client/src/components/poker/PokerWaitingRoom.jsx
 import Avatar from '@mui/material/Avatar';
-import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import ShareRoundedIcon from '@mui/icons-material/ShareRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import ExitToAppRoundedIcon from '@mui/icons-material/ExitToAppRounded';
+import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
+import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import PersonRemoveRoundedIcon from '@mui/icons-material/PersonRemoveRounded';
-import SmartToyRoundedIcon from '@mui/icons-material/SmartToyRounded';
-import CasinoRoundedIcon from '@mui/icons-material/CasinoRounded';
 import { toast } from '../../store/useThemeStore';
 import { getOptimizedImageUrl } from '../../hooks/useCloudinaryUrl';
 import { getInitials } from '../../utils/constants';
+import PokerViewportShell from './PokerViewportShell';
+import { formatPlayerShortName, loadPokerPreferences } from '../../utils/pokerUiHelpers';
+import { useFullscreen } from '../../utils/useFullscreen';
 
 export default function PokerWaitingRoom({
   roomState,
   currentUserId,
-  socketStatus,
+  socketStatus = 'connected',
   onToggleReady,
   onStartGame,
   onKickPlayer,
   onLeaveRoom,
-  actionBusy,
+  actionBusy = false,
 }) {
+  const preferences = loadPokerPreferences();
+  const { isFullscreen, toggle: toggleFullscreen } = useFullscreen();
   const { roomId, room, table } = roomState;
   const seats = table?.seats || [];
   const isHost = room?.hostUserId === currentUserId;
@@ -41,199 +41,191 @@ export default function PokerWaitingRoom({
 
   const handleCopyId = async () => {
     try {
-      await navigator.clipboard.writeText(roomId);
-      toast.success(`ID Room ${roomId} disalin.`);
-    } catch {
-      toast.info(`ID Room: ${roomId}`);
+      if (typeof window !== 'undefined' && window.navigator?.clipboard) {
+        await window.navigator.clipboard.writeText(roomId);
+        toast.success(`Kode ${roomId} disalin.`);
+        return;
+      }
+      toast.info(`Kode Room: ${roomId}`);
+    } catch (_err) {
+      toast.info(`Kode Room: ${roomId}`);
     }
   };
 
   const handleShareLink = async () => {
     try {
-      if (navigator.share) {
-        await navigator.share({
-          title: `Gabung Meja Capsa Banting PASIM (${roomId})`,
-          text: `Ayo main Capsa Banting (Big 2) chip virtual hiburan di Room ${roomId}`,
+      if (typeof window !== 'undefined' && window.navigator?.share) {
+        await window.navigator.share({
+          title: `Room Poker ${roomId}`,
+          text: `Gabung ke Room Poker ${roomId}`,
           url: inviteUrl,
         });
         return;
       }
-      await navigator.clipboard.writeText(inviteUrl);
-      toast.success('Link ajakan room disalin ke clipboard.');
-    } catch {
-      // Pengguna membatalkan share
+      if (typeof window !== 'undefined' && window.navigator?.clipboard) {
+        await window.navigator.clipboard.writeText(inviteUrl);
+        toast.success('Tautan room disalin.');
+      }
+    } catch (_err) {
+      // Pengguna membatalkan dialog bagikan
     }
   };
 
+  const statusDotColor =
+    socketStatus === 'connected'
+      ? 'bg-emerald-400'
+      : socketStatus === 'reconnecting'
+      ? 'bg-amber-400'
+      : 'bg-rose-500';
+
   return (
-    <div className="mx-auto max-w-3xl space-y-4">
-      <Alert severity="info" className="!rounded-2xl !text-xs sm:!text-sm">
-        <strong>Game hiburan dengan chip virtual. Tidak ada uang asli.</strong> Kursi yang kosong saat permainan dimulai akan otomatis diisi oleh Bot AI (4 kursi × 13 kartu).
-      </Alert>
+    <PokerViewportShell theme={preferences.tableTheme}>
+      {/* Bar Atas Tipis: Keluar (Kiri), Kode Room Besar + Salin/Bagikan (Tengah), Titik Koneksi (Kanan) */}
+      <header className="flex items-center justify-between gap-2 px-1">
+        <IconButton
+          onClick={onLeaveRoom}
+          disabled={actionBusy}
+          aria-label="Keluar dari ruang tunggu"
+          className="!min-h-[44px] !min-w-[44px] !text-slate-200"
+        >
+          <ArrowBackRoundedIcon fontSize="small" />
+        </IconButton>
 
-      <div className="card-surface p-4 sm:p-6 space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4 dark:border-slate-800">
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <CasinoRoundedIcon className="text-emerald-600 dark:text-emerald-400" />
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Ruang Tunggu Capsa Banting
-              </span>
-              <Chip
-                size="small"
-                color={socketStatus === 'connected' ? 'success' : 'warning'}
-                label={socketStatus === 'connected' ? 'Terhubung' : 'Menyambung...'}
-                className="!h-5 !text-[10px]"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="m-0 text-2xl sm:text-3xl font-black tracking-widest text-slate-900 dark:text-white font-mono">
-                {roomId}
-              </h1>
-              <Tooltip title="Salin ID Room">
-                <IconButton
-                  onClick={handleCopyId}
-                  aria-label="Salin ID Room"
-                  className="!min-h-[40px] !min-w-[40px] border border-slate-200 dark:border-slate-700"
-                >
-                  <ContentCopyRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Button
-                variant="outlined"
-                color="success"
-                size="small"
-                startIcon={<ShareRoundedIcon />}
-                onClick={handleShareLink}
-                className="!min-h-[40px]"
-              >
-                Bagikan Link
-              </Button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5 text-xs">
-            <Chip size="small" label={`Chip Awal: ${room?.config?.startingChips}`} variant="outlined" />
-            <Chip size="small" label={`Tarif: ${room?.config?.baseStake || 10}/kartu`} variant="outlined" />
-            <Chip size="small" label={`Timer: ${room?.config?.turnTimeoutSec}d`} variant="outlined" />
-          </div>
+        <div className="flex items-center gap-1.5">
+          <span className="font-mono poker-text-lg font-extrabold tracking-widest text-white">
+            {roomId}
+          </span>
+          <IconButton
+            onClick={handleCopyId}
+            aria-label="Salin kode room"
+            className="!min-h-[44px] !min-w-[44px] !text-slate-200"
+          >
+            <ContentCopyRoundedIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            onClick={handleShareLink}
+            aria-label="Bagikan tautan room"
+            className="!min-h-[44px] !min-w-[44px] !text-emerald-400"
+          >
+            <ShareRoundedIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? 'Keluar dari layar penuh' : 'Layar penuh'}
+            className="!min-h-[44px] !min-w-[44px] !text-amber-300"
+          >
+            {isFullscreen ? (
+              <FullscreenExitRoundedIcon fontSize="small" />
+            ) : (
+              <FullscreenRoundedIcon fontSize="small" />
+            )}
+          </IconButton>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[0, 1, 2, 3].map((slot) => {
-            const seat = seats.find((s) => s.seatIndex === slot);
-            if (!seat) {
-              return (
-                <div
-                  key={slot}
-                  className="flex items-center justify-between rounded-2xl border border-dashed border-slate-200 p-3.5 text-xs text-slate-400 dark:border-slate-700"
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <SmartToyRoundedIcon fontSize="small" />
-                    Kursi #{slot + 1} · Kosong
-                  </span>
-                  <span className="text-[11px]">Diisi Bot saat mulai</span>
-                </div>
-              );
-            }
+        <span
+          className={`h-2.5 w-2.5 rounded-full shrink-0 mr-2 ${statusDotColor}`}
+          role="status"
+          aria-label={socketStatus === 'connected' ? 'Terhubung' : 'Menyambung ulang'}
+        />
+      </header>
 
-            const seatIsHost = seat.userId === room?.hostUserId;
+      {/* Daftar 4 Slot Pemain (Pasti Muat 1 Layar di Portrait 320x568 maupun Landscape 640x360) */}
+      <div className="my-auto mx-auto w-full max-w-md px-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {[0, 1, 2, 3].map((slot) => {
+          const seat = seats.find((s) => s.seatIndex === slot);
+          if (!seat) {
             return (
               <div
-                key={seat.userId}
-                className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-navy"
+                key={slot}
+                className="poker-flat-panel min-h-[48px] px-3 py-1.5 flex items-center justify-between text-slate-400"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar
-                    src={getOptimizedImageUrl(seat.avatarUrl, { width: 80, height: 80 })}
-                    sx={{ width: 42, height: 42 }}
-                  >
-                    {getInitials(seat.fullName)}
-                  </Avatar>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-bold text-slate-900 dark:text-white">
-                        {seat.fullName}
-                      </span>
-                      {seatIsHost && (
-                        <Chip size="small" label="Host" color="warning" className="!h-4 !text-[10px]" />
-                      )}
-                    </div>
-                    <div className="mt-0.5 flex items-center gap-1.5">
-                      <Chip
-                        size="small"
-                        color={seat.ready ? 'success' : 'default'}
-                        variant={seat.ready ? 'filled' : 'outlined'}
-                        label={seat.ready ? 'Siap' : 'Belum Siap'}
-                        className="!h-5 !text-[10px]"
-                      />
-                      {!seat.connected && (
-                        <Chip size="small" color="error" label="Terputus" className="!h-5 !text-[10px]" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {isHost && seat.userId !== currentUserId && (
-                  <Tooltip title="Keluarkan dari room">
-                    <IconButton
-                      size="small"
-                      color="error"
-                      disabled={actionBusy}
-                      onClick={() => onKickPlayer(seat.userId)}
-                      aria-label={`Keluarkan ${seat.fullName}`}
-                      className="!min-h-[44px] !min-w-[44px]"
-                    >
-                      <PersonRemoveRoundedIcon fontSize="small" />
-                    </IconButton>
-                  </Tooltip>
-                )}
+                <span className="poker-text-sm font-medium">Kursi #{slot + 1}</span>
+                <span className="poker-text-sm">Kosong</span>
               </div>
             );
-          })}
-        </div>
+          }
 
-        <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 pt-2">
-          <Button
-            variant="outlined"
-            color="error"
-            startIcon={<ExitToAppRoundedIcon />}
-            onClick={onLeaveRoom}
-            disabled={actionBusy}
-            className="!min-h-[44px]"
-          >
-            Keluar Room
-          </Button>
+          const seatIsHost = seat.userId === room?.hostUserId;
+          const statusLabel = seatIsHost ? 'Host' : seat.ready ? 'Siap' : 'Menunggu';
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            {mySeat && (
-              <Button
-                variant={mySeat.ready ? 'outlined' : 'contained'}
-                color="success"
-                startIcon={<CheckCircleRoundedIcon />}
-                onClick={() => onToggleReady(!mySeat.ready)}
-                disabled={actionBusy}
-                className="!min-h-[44px]"
-              >
-                {mySeat.ready ? 'Batalkan Siap' : 'Saya Siap'}
-              </Button>
-            )}
+          return (
+            <div
+              key={seat.userId}
+              className="poker-flat-elevated min-h-[48px] px-3 py-1.5 flex items-center justify-between gap-2"
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <Avatar
+                  src={getOptimizedImageUrl(seat.avatarUrl, { width: 64, height: 64 })}
+                  sx={{ width: 28, height: 28, fontSize: 12 }}
+                >
+                  {getInitials(seat.fullName)}
+                </Avatar>
+                <span className="poker-text-md font-bold text-slate-100 truncate">
+                  {formatPlayerShortName(seat.fullName, { maxChars: 14 })}
+                </span>
+              </div>
 
-            {isHost && (
-              <Button
-                variant="contained"
-                color="success"
-                startIcon={<PlayArrowRoundedIcon />}
-                onClick={onStartGame}
-                disabled={!canStart || actionBusy}
-                className="!min-h-[44px]"
-              >
-                Mulai Main ({seats.length}/4 Pemain · Sisa Bot)
-              </Button>
-            )}
-          </div>
-        </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <span
+                  className={`poker-text-sm font-bold ${
+                    seatIsHost
+                      ? 'text-amber-400'
+                      : seat.ready
+                      ? 'text-emerald-400'
+                      : 'text-slate-400'
+                  }`}
+                >
+                  {statusLabel}
+                </span>
+
+                {isHost && seat.userId !== currentUserId && (
+                  <IconButton
+                    size="small"
+                    color="error"
+                    disabled={actionBusy}
+                    onClick={() => onKickPlayer(seat.userId)}
+                    aria-label={`Keluarkan ${seat.fullName}`}
+                    className="!min-h-[44px] !min-w-[44px] !text-rose-400"
+                  >
+                    <PersonRemoveRoundedIcon fontSize="small" />
+                  </IconButton>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
-    </div>
+
+      {/* Satu Tombol Aksi Utama ("Mulai" untuk Host, "Siap" untuk Pemain) */}
+      <footer className="mx-auto w-full max-w-md px-2 pt-1">
+        {isHost ? (
+          <Button
+            variant="contained"
+            color="success"
+            fullWidth
+            disabled={!canStart || actionBusy}
+            onClick={onStartGame}
+            className="!min-h-[50px] !rounded-2xl !bg-emerald-600 hover:!bg-emerald-500 disabled:!bg-slate-800 disabled:!text-slate-500 !text-white !font-extrabold poker-text-md !normal-case !shadow-none"
+          >
+            {canStart ? 'Mulai' : 'Menunggu Pemain Siap…'}
+          </Button>
+        ) : (
+          <Button
+            variant={mySeat?.ready ? 'outlined' : 'contained'}
+            color="success"
+            fullWidth
+            disabled={actionBusy || !mySeat}
+            onClick={() => onToggleReady(!mySeat?.ready)}
+            className={`!min-h-[50px] !rounded-2xl !font-extrabold poker-text-md !normal-case !shadow-none ${
+              mySeat?.ready
+                ? '!border-emerald-400 !text-emerald-300'
+                : '!bg-emerald-600 !text-white'
+            }`}
+          >
+            {mySeat?.ready ? 'Siap ✓' : 'Siap'}
+          </Button>
+        )}
+      </footer>
+    </PokerViewportShell>
   );
 }

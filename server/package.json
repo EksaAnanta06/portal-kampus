@@ -10,6 +10,9 @@
     "check": "node scripts/syntax-check.mjs",
     "seed:passwords": "node src/utils/seedPasswords.js"
   },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
     "archiver": "^8.0.0",
     "bcrypt": "^5.1.1",

@@ -1,8 +1,22 @@
 // FILE: client/src/api/axiosInstance.js
 import axios from 'axios';
 import { getAccessToken, setAuthTokens, clearAuthSession } from './authBridge';
+import { isNativePlatform, isAndroid } from '../platform/detection';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api/v1';
+const getDefaultApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  // Jika di native Android, baseURL tidak boleh berupa path relatif (seperti /api/v1) karena WebView native mengarah ke https://localhost (internal APK) yang tidak memiliki server API
+  if (typeof window !== 'undefined' && isNativePlatform() && isAndroid()) {
+    if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
+      return envUrl;
+    }
+    // IP LAN komputer host (Wi-Fi) untuk HP fisik dan fallback emulator
+    return 'http://192.168.101.5:5000/api/v1';
+  }
+  return envUrl || 'http://localhost:5000/api/v1';
+};
+
+export const API_BASE_URL = getDefaultApiBaseUrl();
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
