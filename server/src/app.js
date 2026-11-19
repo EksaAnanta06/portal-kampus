@@ -85,6 +85,15 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(sanitizeRequest);
 
+// Root Health Check untuk Cloud Platform (Koyeb, Render, AWS, Docker)
+app.get(['/', '/healthz'], (_req, res) => {
+  res.status(200).json({
+    success: true,
+    message: 'Portal Kampus UNAS PASIM API is running.',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // 4. Endpoint REST API Utama (/api/v1)
 app.use('/api/v1', apiRoutes);
 
