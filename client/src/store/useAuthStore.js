@@ -4,10 +4,20 @@ import { authApi } from '../api/auth.api';
 import { requestNewAccessToken } from '../api/axiosInstance';
 import { registerAuthBridge } from '../api/authBridge';
 import { STAFF_ROLES } from '../utils/constants';
+import { isNativePlatform } from '../platform/detection';
+import {
+  getNativeRefreshToken,
+  setNativeRefreshToken,
+  clearNativeRefreshToken,
+} from '../platform/authStorage';
+import { teardownNativeBackgroundPush } from '../services/nativePushSync';
+
+let initAuthPromise = null;
 
 /**
  * Access token HANYA disimpan di memori (tidak di localStorage) untuk mengurangi risiko XSS.
- * Saat halaman di-refresh, sesi dipulihkan via cookie httpOnly refresh token (initAuth).
+ * Pada web, sesi dipulihkan via cookie httpOnly refresh token (initAuth).
+ * Pada native Android/iOS, refresh token disimpan aman lewat Capacitor Preferences (@capacitor/preferences).
  */
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -25,24 +35,49 @@ const useAuthStore = create((set, get) => ({
 
   clearAuth: () => set({ user: null, accessToken: null }),
 
-  /** Memulihkan sesi dari refresh token cookie saat aplikasi pertama dimuat */
+  /** Memulihkan sesi dari refresh token (cookie di web / Preferences di native) saat aplikasi pertama dimuat */
   initAuth: async () => {
     if (get().isInitialized) return;
-    try {
-      await requestNewAccessToken();
-    } catch {
-      set({ user: null, accessToken: null });
-    } finally {
-      set({ isInitialized: true });
-    }
+    if (initAuthPromise) return initAuthPromise;
+    initAuthPromise = (async () => {
+      try {
+        await requestNewAccessToken();
+      } catch {
+        if (!get().accessToken) {
+          set({ user: null, accessToken: null });
+        }
+      } finally {
+        set({ isInitialized: true });
+        initAuthPromise = null;
+      }
+    })();
+    return initAuthPromise;
   },
 
   login: async ({ identifier, password }) => {
     set({ isLoading: true });
     try {
       const res = await authApi.login({ identifier, password });
-      const { user, accessToken } = res.data;
-      set({ user, accessToken });
+      const { user, accessToken, refreshToken } = res.data;
+      if (isNativePlatform() && refreshToken) {
+        await setNativeRefreshToken(refreshToken);
+      }
+      set({ user, accessToken, isInitialized: true });
+      return res;
+    } finally {
+      set({ isLoading: false });
+    }
+  },
+
+  loginWithGoogleCode: async (code) => {
+    set({ isLoading: true });
+    try {
+      const res = await authApi.exchangeGoogleCode(code);
+      const { user, accessToken, refreshToken } = res.data;
+      if (isNativePlatform() && refreshToken) {
+        await setNativeRefreshToken(refreshToken);
+      }
+      set({ user, accessToken, isInitialized: true });
       return res;
     } finally {
       set({ isLoading: false });
@@ -51,10 +86,13 @@ const useAuthStore = create((set, get) => ({
 
   logout: async () => {
     try {
-      await authApi.logout();
+      await teardownNativeBackgroundPush().catch(() => {});
+      const nativeToken = isNativePlatform() ? await getNativeRefreshToken() : null;
+      await authApi.logout(nativeToken ? { refreshToken: nativeToken } : undefined);
     } catch {
       // abaikan — sesi lokal tetap dihapus
     } finally {
+      await clearNativeRefreshToken();
       set({ user: null, accessToken: null });
     }
   },

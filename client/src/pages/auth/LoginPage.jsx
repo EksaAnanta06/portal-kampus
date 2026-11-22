@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import Divider from '@mui/material/Divider';
 import Alert from '@mui/material/Alert';
 import CircularProgress from '@mui/material/CircularProgress';
 import InputAdornment from '@mui/material/InputAdornment';
@@ -12,7 +13,9 @@ import VisibilityOffRoundedIcon from '@mui/icons-material/VisibilityOffRounded';
 import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
-import { getErrorMessage } from '../../api/axiosInstance';
+import { API_BASE_URL, getErrorMessage } from '../../api/axiosInstance';
+import { startGoogleOAuth } from '../../platform';
+import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -23,6 +26,7 @@ export default function LoginPage() {
   const [form, setForm] = useState({ identifier: '', password: '' });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   const fromState = location.state?.from;
   const from = fromState
@@ -38,6 +42,19 @@ export default function LoginPage() {
       navigate(from, { replace: true });
     } catch (err) {
       setError(getErrorMessage(err, 'Login gagal. Periksa kembali NIM/Email dan password Anda.'));
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    setError('');
+    setGoogleLoading(true);
+    try {
+      await startGoogleOAuth({ apiBaseUrl: API_BASE_URL, redirectPath: from });
+    } catch (err) {
+      setError(getErrorMessage(err, 'Gagal membuka autentikasi Google.'));
+      setGoogleLoading(false);
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
@@ -123,13 +140,22 @@ export default function LoginPage() {
           type="submit"
           variant="contained"
           size="large"
-          disabled={isLoading}
+          disabled={isLoading || googleLoading}
           startIcon={isLoading ? <CircularProgress size={18} color="inherit" /> : <LoginRoundedIcon />}
           className="!mt-2"
         >
           {isLoading ? 'Memeriksa...' : 'Masuk'}
         </Button>
       </form>
+
+      <Divider className="!my-5 text-xs text-slate-400">atau</Divider>
+
+      <GoogleSignInButton
+        label="Masuk dengan Google"
+        loading={googleLoading}
+        disabled={isLoading}
+        onClick={handleGoogleLogin}
+      />
 
       {/* Shortcut Akun Demo */}
       {import.meta.env.DEV && (

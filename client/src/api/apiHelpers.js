@@ -8,10 +8,6 @@ export const cleanParams = (params = {}) =>
     Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)
   );
 
-export const triggerBlobDownload = (blobData, filename) => {
-  downloadBlobFile(blobData, filename).catch((err) => {
-    console.error('[BlobDownload] Gagal mengunduh berkas:', err);
-  });
-};
+export const triggerBlobDownload = (blobData, filename) => downloadBlobFile(blobData, filename);
 
 export { getErrorMessage, getFieldErrors } from './axiosInstance';

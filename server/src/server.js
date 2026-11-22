@@ -6,6 +6,7 @@ import { initCronJobs, stopCronJobs } from './utils/cronJobs.js';
 import { registerGracefulShutdown } from './utils/gracefulShutdown.js';
 import { attachPokerSocketServer } from './poker/pokerSocketServer.js';
 import { getPokerRoomManager } from './poker/singleton.js';
+import { notificationHub } from './services/notificationHub.js';
 
 const startServer = async () => {
   try {
@@ -28,6 +29,7 @@ const startServer = async () => {
       stopBackgroundJobs: () => {
         stopCronJobs();
         pokerSocket.shutdown();
+        notificationHub.shutdown();
       },
       closeDatabase: () => pool.end(),
     });

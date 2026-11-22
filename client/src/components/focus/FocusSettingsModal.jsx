@@ -19,6 +19,11 @@ import NotificationsActiveRoundedIcon from '@mui/icons-material/NotificationsAct
 import { focusApi } from '../../api/focus.api';
 import { getErrorMessage } from '../../api/axiosInstance';
 import { toast } from '../../store/useThemeStore';
+import useFocusTimerStore from '../../store/useFocusTimerStore';
+import {
+  ensureNativeBackgroundPush,
+  teardownNativeBackgroundPush,
+} from '../../services/nativePushSync';
 import {
   getCurrentPushSubscription,
   isIosDevice,
@@ -27,6 +32,14 @@ import {
   subscribeToWebPush,
   unsubscribeFromWebPush,
 } from '../../utils/pushNotifications';
+import {
+  isNativePlatform,
+  getNativeNotificationStatus,
+  enableNativeNotifications,
+  disableNativeNotifications,
+  sendTestNativeNotification,
+  CHANNEL_FOCUS,
+} from '../../platform';
 
 const TIMEZONE_OPTIONS = [
   { value: 'Asia/Jakarta', label: 'WIB (Asia/Jakarta)' },
@@ -81,15 +94,36 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
         .catch(() => {});
     }
 
-    getCurrentPushSubscription()
-      .then((sub) => setPushSubscribed(Boolean(sub)))
-      .catch(() => setPushSubscribed(false));
+    if (isNativePlatform()) {
+      getNativeNotificationStatus()
+        .then((status) => setPushSubscribed(Boolean(status.enabled)))
+        .catch(() => setPushSubscribed(false));
+    } else {
+      getCurrentPushSubscription()
+        .then((sub) => setPushSubscribed(Boolean(sub)))
+        .catch(() => setPushSubscribed(false));
+    }
   }, [open, initialSettings]);
+
+  const isNative = isNativePlatform();
 
   const handleTogglePush = async () => {
     setPushLoading(true);
     try {
-      if (pushSubscribed) {
+      if (isNative) {
+        if (pushSubscribed) {
+          await disableNativeNotifications();
+          await teardownNativeBackgroundPush().catch(() => {});
+          setPushSubscribed(false);
+          toast.info('Notifikasi perangkat Android dimatikan.');
+        } else {
+          await enableNativeNotifications({ sendConfirmation: true });
+          useFocusTimerStore.getState().syncNativeNotifications();
+          await ensureNativeBackgroundPush({ forceNew: true }).catch(() => {});
+          setPushSubscribed(true);
+          toast.success('Notifikasi perangkat Android aktif!');
+        }
+      } else if (pushSubscribed) {
         await unsubscribeFromWebPush();
         setPushSubscribed(false);
         toast.info('Notifikasi Web Push di perangkat ini dimatikan.');
@@ -99,7 +133,24 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
         toast.success('Notifikasi Web Push aktif untuk perangkat ini!');
       }
     } catch (err) {
-      toast.error(err?.response?.data?.message || err?.message || 'Gagal mengatur Web Push.');
+      toast.error(err?.response?.data?.message || err?.message || 'Gagal mengatur notifikasi perangkat.');
+    } finally {
+      setPushLoading(false);
+    }
+  };
+
+  const handleTestNativeNotification = async () => {
+    setPushLoading(true);
+    try {
+      await sendTestNativeNotification({
+        channelId: CHANNEL_FOCUS,
+        title: 'Uji Alarm Pomodoro Portal Pasim',
+        body: 'Notifikasi Timer Fokus & logo UNAS PASIM berhasil tampil di panel HP Anda!',
+        link: '/fokus',
+      });
+      toast.info('Notifikasi uji dikirim ke panel HP.');
+    } catch (err) {
+      toast.error(err?.message || 'Gagal mengirim notifikasi uji Android.');
     } finally {
       setPushLoading(false);
     }
@@ -372,36 +423,57 @@ export default function FocusSettingsModal({ open, onClose, initialSettings, onS
 
       <Divider />
 
-      {/* Bagian 4: Web Push (Notifikasi saat Tab Ditutup) */}
+      {/* Bagian 4: Notifikasi Perangkat (Native Android / Web Push PWA) */}
       <div className="space-y-2.5 rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 dark:border-slate-700 dark:bg-navy">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 text-sm font-bold text-slate-900 dark:text-white">
               <NotificationsActiveRoundedIcon fontSize="small" className="text-emerald-600 dark:text-emerald-400" />
-              <span>Notifikasi Push Browser (PWA)</span>
+              <span>{isNative ? 'Notifikasi Perangkat Android' : 'Notifikasi Push Browser (PWA)'}</span>
             </div>
             <p className="m-0 mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-              Terima pengingat sesi & deadline meskipun tab aplikasi sedang ditutup.
+              {isNative
+                ? 'Aktifkan izin notifikasi Android untuk menerima alarm timer fokus, pengingat jadwal, dan notifikasi kampus.'
+                : 'Terima pengingat sesi & deadline meskipun tab aplikasi sedang ditutup.'}
             </p>
           </div>
-          <Button
-            type="button"
-            variant={pushSubscribed ? 'outlined' : 'contained'}
-            color={pushSubscribed ? 'error' : 'success'}
-            size="small"
-            disabled={pushLoading || !isWebPushSupported()}
-            onClick={handleTogglePush}
-            className="!min-h-[44px]"
-          >
-            {pushLoading
-              ? 'Memproses...'
-              : pushSubscribed
-              ? 'Matikan Push'
-              : 'Aktifkan Push'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isNative && pushSubscribed && (
+              <Button
+                type="button"
+                variant="outlined"
+                color="primary"
+                size="small"
+                disabled={pushLoading}
+                onClick={handleTestNativeNotification}
+                className="!min-h-[44px]"
+              >
+                Uji Notifikasi
+              </Button>
+            )}
+            <Button
+              type="button"
+              variant={pushSubscribed ? 'outlined' : 'contained'}
+              color={pushSubscribed ? 'error' : 'success'}
+              size="small"
+              disabled={pushLoading || (!isNative && !isWebPushSupported())}
+              onClick={handleTogglePush}
+              className="!min-h-[44px]"
+            >
+              {pushLoading
+                ? 'Memproses...'
+                : pushSubscribed
+                ? isNative
+                  ? 'Matikan Notifikasi'
+                  : 'Matikan Push'
+                : isNative
+                ? 'Aktifkan Notifikasi'
+                : 'Aktifkan Push'}
+            </Button>
+          </div>
         </div>
 
-        {iosNotInstalled && (
+        {!isNative && iosNotInstalled && (
           <Alert severity="info" className="!rounded-xl !text-xs">
             Di iPhone/iPad (Safari), Web Push hanya berfungsi jika Anda memasang portal ini ke Layar Utama (
             <strong>Bagikan → Tambah ke Layar Utama</strong>). Tanpa itu, pengingat tetap tampil di ikon lonceng dalam aplikasi.

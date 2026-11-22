@@ -5,16 +5,22 @@
   "android": {
     "allowMixedContent": false,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "overrideUserAgent": "PortalPasimApp/1.0 (Android; Mobile)"
   },
   "server": {
+    "url": "https://nondecayed-bodhi-bardier.ngrok-free.dev",
     "androidScheme": "https",
     "cleartext": true,
     "allowNavigation": [
+      "nondecayed-bodhi-bardier.ngrok-free.dev",
+      "*.ngrok-free.dev",
+      "*.ngrok-free.app",
+      "*.trycloudflare.com",
+      "*.loca.lt",
+      "192.168.*",
       "localhost",
       "10.0.2.2",
-      "192.168.101.5",
-      "192.168.*",
       "res.cloudinary.com",
       "fonts.googleapis.com",
       "fonts.gstatic.com"
@@ -36,6 +42,10 @@
       "resize": "body",
       "style": "DARK",
       "resizeOnFullScreen": true
+    },
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_pasim",
+      "iconColor": "#8B1E24"
     }
   }
 }

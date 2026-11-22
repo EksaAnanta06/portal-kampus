@@ -1,5 +1,7 @@
 // FILE: server/src/queries/auth.queries.js
-import { pool } from '../config/db.js';
+import { pool, ensureGoogleAuthSchema } from '../config/db.js';
+
+export const ensureGoogleAuthColumn = ensureGoogleAuthSchema;
 
 export const findUserByEmailOrNim = async (identifier) => {
   const [rows] = await pool.execute(
@@ -7,6 +9,29 @@ export const findUserByEmailOrNim = async (identifier) => {
     [identifier, identifier]
   );
   return rows[0] || null;
+};
+
+export const findUserByGoogleIdOrEmail = async (googleId, email) => {
+  await ensureGoogleAuthColumn();
+  const [rows] = await pool.execute(
+    `SELECT id, nim, full_name, email, password_hash, role, status, prodi, angkatan_year, avatar_url, google_id
+     FROM users
+     WHERE google_id = ? OR email = ?
+     LIMIT 1`,
+    [googleId, email]
+  );
+  return rows[0] || null;
+};
+
+export const linkUserGoogleAccount = async (userId, { googleId, avatarUrl = null }) => {
+  await ensureGoogleAuthColumn();
+  await pool.execute(
+    `UPDATE users
+     SET google_id = COALESCE(google_id, ?),
+         avatar_url = COALESCE(NULLIF(avatar_url, ''), ?)
+     WHERE id = ?`,
+    [googleId, avatarUrl, userId]
+  );
 };
 
 export const findUserById = async (id, db = pool) => {
@@ -37,16 +62,31 @@ export const ensureAngkatanExists = async (year, db = pool) => {
   );
 };
 
-export const createUserRecord = async ({ nim, full_name, email, password_hash, role, prodi, angkatan_year }) => {
+const insertUserRecord = async ({
+  nim,
+  full_name,
+  email,
+  password_hash,
+  role,
+  prodi,
+  angkatan_year,
+  google_id = null,
+  avatar_url = null,
+  includeGoogleColumns = false,
+}) => {
   const connection = await pool.getConnection();
   try {
     await connection.beginTransaction();
     await ensureAngkatanExists(angkatan_year, connection);
-    const [result] = await connection.execute(
-      `INSERT INTO users (nim, full_name, email, password_hash, role, status, prodi, angkatan_year)
-       VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`,
-      [nim, full_name, email, password_hash, role, prodi, angkatan_year]
-    );
+    const sql = includeGoogleColumns
+      ? `INSERT INTO users (nim, full_name, email, password_hash, role, status, prodi, angkatan_year, google_id, avatar_url)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`
+      : `INSERT INTO users (nim, full_name, email, password_hash, role, status, prodi, angkatan_year)
+         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`;
+    const params = includeGoogleColumns
+      ? [nim, full_name, email, password_hash, role, prodi, angkatan_year, google_id, avatar_url]
+      : [nim, full_name, email, password_hash, role, prodi, angkatan_year];
+    const [result] = await connection.execute(sql, params);
     await connection.commit();
     return result.insertId;
   } catch (err) {
@@ -55,6 +95,13 @@ export const createUserRecord = async ({ nim, full_name, email, password_hash, r
   } finally {
     connection.release();
   }
+};
+
+export const createUserRecord = async (payload) => insertUserRecord(payload);
+
+export const createGoogleUserRecord = async (payload) => {
+  await ensureGoogleAuthColumn();
+  return insertUserRecord({ ...payload, includeGoogleColumns: true });
 };
 
 export const saveRefreshToken = async ({ userId, tokenHash, userAgent, ipAddress, expiresAt }, db = pool) => {

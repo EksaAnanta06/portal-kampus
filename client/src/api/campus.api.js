@@ -40,6 +40,17 @@ export const campusApi = {
 
   // ---------- Notifikasi ----------
   getNotifications: () => unwrap(axiosInstance.get('/campus/notifications')),
+  createNotificationPushSession: () =>
+    unwrap(axiosInstance.post('/campus/notifications/push-session')),
+  revokeNotificationPushSession: (streamToken) =>
+    unwrap(
+      axiosInstance.delete(
+        '/campus/notifications/push-session',
+        streamToken
+          ? { data: { streamToken }, headers: { 'X-Notification-Token': streamToken } }
+          : {}
+      )
+    ),
   readAllNotifications: () => unwrap(axiosInstance.patch('/campus/notifications/read-all')),
   readNotification: (id) => unwrap(axiosInstance.patch(`/campus/notifications/${id}/read`)),
 };

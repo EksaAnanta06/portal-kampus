@@ -1,4 +1,5 @@
 // FILE: server/src/controllers/auth.controller.js
+import crypto from 'crypto';
 import { env } from '../config/env.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { sendResponse } from '../utils/apiResponse.js';
@@ -12,6 +13,14 @@ import {
   resetPasswordService,
   changePasswordService,
 } from '../services/auth.service.js';
+import {
+  buildGoogleAuthorizationUrl,
+  handleGoogleCallbackService,
+  redeemGoogleExchangeCodeService,
+  getPendingGoogleRegistrationService,
+  completeGoogleRegistrationService,
+  renderNativeDeepLinkHtml,
+} from '../services/googleAuth.service.js';
 
 const REFRESH_COOKIE_NAME = 'pasim_refresh_token';
 
@@ -35,6 +44,28 @@ const getCookieOptions = (req, { includeMaxAge = true } = {}) => {
   return options;
 };
 
+const isNativeClient = (req) =>
+  String(req.headers?.['x-client'] || '').trim().toLowerCase() === 'native';
+
+const extractRefreshToken = (req) => {
+  const bodyToken =
+    typeof req.body?.refreshToken === 'string' ? req.body.refreshToken.trim() : '';
+  const headerToken =
+    typeof req.headers?.['x-refresh-token'] === 'string'
+      ? req.headers['x-refresh-token'].trim()
+      : '';
+  const cookieToken =
+    typeof req.cookies?.[REFRESH_COOKIE_NAME] === 'string'
+      ? req.cookies[REFRESH_COOKIE_NAME].trim()
+      : '';
+
+  // Klien native hanya memakai token eksplisit dari SharedPreferences agar cookie WebView usang tidak pernah memicu reuse-revocation
+  if (isNativeClient(req)) {
+    return bodyToken || headerToken || null;
+  }
+  return cookieToken || bodyToken || headerToken || null;
+};
+
 export const register = asyncHandler(async (req, res) => {
   const newUser = await registerUserService(req.body);
   return sendResponse(res, {
@@ -54,6 +85,14 @@ export const login = asyncHandler(async (req, res) => {
     ipAddress: req.ip,
   });
 
+  if (isNativeClient(req)) {
+    res.clearCookie(REFRESH_COOKIE_NAME, getCookieOptions(req, { includeMaxAge: false }));
+    return sendResponse(res, {
+      message: `Selamat datang kembali, ${user.full_name}!`,
+      data: { user, accessToken, refreshToken },
+    });
+  }
+
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
 
   return sendResponse(res, {
@@ -63,12 +102,20 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const refresh = asyncHandler(async (req, res) => {
-  const oldRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  const oldRefreshToken = extractRefreshToken(req);
   const { user, accessToken, refreshToken } = await rotateRefreshTokenService({
     oldRefreshToken,
     userAgent: req.headers['user-agent'],
     ipAddress: req.ip,
   });
+
+  if (isNativeClient(req)) {
+    res.clearCookie(REFRESH_COOKIE_NAME, getCookieOptions(req, { includeMaxAge: false }));
+    return sendResponse(res, {
+      message: 'Token berhasil diperbarui.',
+      data: { user, accessToken, refreshToken },
+    });
+  }
 
   res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
 
@@ -79,7 +126,7 @@ export const refresh = asyncHandler(async (req, res) => {
 });
 
 export const logout = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+  const refreshToken = extractRefreshToken(req);
   if (refreshToken) {
     await revokeRefreshTokenByHash(hashToken(refreshToken));
   }
@@ -125,10 +172,88 @@ export const changePassword = asyncHandler(async (req, res) => {
     ipAddress: req.ip,
   });
 
-  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions());
+  if (isNativeClient(req)) {
+    res.clearCookie(REFRESH_COOKIE_NAME, getCookieOptions(req, { includeMaxAge: false }));
+    return sendResponse(res, {
+      message: 'Password akun berhasil diubah. Sesi perangkat lain telah dicabut.',
+      data: { accessToken, refreshToken },
+    });
+  }
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
 
   return sendResponse(res, {
     message: 'Password akun berhasil diubah. Sesi perangkat lain telah dicabut.',
     data: { accessToken },
+  });
+});
+
+export const startGoogleAuth = asyncHandler(async (req, res) => {
+  const authUrl = buildGoogleAuthorizationUrl({
+    req,
+    platform: req.query.platform,
+    origin: req.query.origin,
+    redirectPath: req.query.redirect,
+  });
+  return res.redirect(302, authUrl);
+});
+
+export const handleGoogleAuthCallback = asyncHandler(async (req, res) => {
+  const { code, state, error } = req.query;
+  const { platform, targetUrl } = await handleGoogleCallbackService({ code, state, error });
+
+  if (platform === 'native') {
+    const nonce = crypto.randomBytes(16).toString('base64');
+    res.setHeader(
+      'Content-Security-Policy',
+      `default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src 'self' data:`
+    );
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    return res.status(200).send(renderNativeDeepLinkHtml(targetUrl, nonce));
+  }
+
+  return res.redirect(302, targetUrl);
+});
+
+export const exchangeGoogleCode = asyncHandler(async (req, res) => {
+  const { code } = req.body;
+  const { user, accessToken, refreshToken, redirectPath } = await redeemGoogleExchangeCodeService({
+    code,
+    userAgent: req.headers['user-agent'],
+    ipAddress: req.ip,
+  });
+
+  if (isNativeClient(req)) {
+    res.clearCookie(REFRESH_COOKIE_NAME, getCookieOptions(req, { includeMaxAge: false }));
+    return sendResponse(res, {
+      message: `Selamat datang kembali, ${user.full_name}!`,
+      data: { user, accessToken, refreshToken, redirectPath },
+    });
+  }
+
+  res.cookie(REFRESH_COOKIE_NAME, refreshToken, getCookieOptions(req));
+
+  return sendResponse(res, {
+    message: `Selamat datang kembali, ${user.full_name}!`,
+    data: { user, accessToken, redirectPath },
+  });
+});
+
+export const getPendingGoogleRegistration = asyncHandler(async (req, res) => {
+  const profile = getPendingGoogleRegistrationService(req.query.token);
+  return sendResponse(res, {
+    message: 'Profil Google terverifikasi dimuat.',
+    data: profile,
+  });
+});
+
+export const completeGoogleRegistration = asyncHandler(async (req, res) => {
+  const user = await completeGoogleRegistrationService(req.body);
+  return sendResponse(res, {
+    statusCode: 201,
+    message:
+      'Registrasi dengan Google berhasil! Akun Anda berstatus "Menunggu Verifikasi" oleh Admin berdasarkan NIM.',
+    data: { user },
   });
 });

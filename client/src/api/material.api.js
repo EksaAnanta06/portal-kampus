@@ -166,7 +166,7 @@ export const materialApi = {
       responseType: 'blob',
       timeout: 0,
     });
-    triggerBlobDownload(res.data, `Materi_${courseName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
+    return triggerBlobDownload(res.data, `Materi_${courseName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
   },
 
   downloadPackageZip: async (packageId, packageName = 'paket_belajar') => {
@@ -174,7 +174,7 @@ export const materialApi = {
       responseType: 'blob',
       timeout: 0,
     });
-    triggerBlobDownload(res.data, `Paket_${packageName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
+    return triggerBlobDownload(res.data, `Paket_${packageName.replace(/[^a-zA-Z0-9_-]/g, '_')}.zip`);
   },
 };
 

@@ -498,7 +498,19 @@ export const toggleMaterialVoteService = async (materialId, user) => {
   if (meta.status !== 'approved' || !meta.is_published) {
     throw new AppError('Hanya materi yang disetujui yang dapat diberi vote.', 403);
   }
-  return socialRepo.toggleMaterialVote(materialId, user.id);
+  const result = await socialRepo.toggleMaterialVote(materialId, user.id);
+
+  if (result.voted && meta.uploaded_by && Number(meta.uploaded_by) !== Number(user.id)) {
+    await createNotification({
+      userId: meta.uploaded_by,
+      type: 'new_like',
+      title: 'Materi Anda Dinilai Bermanfaat',
+      message: `${user.full_name} menyukai materi "${meta.judul}".`,
+      referenceLink: `/akademik/materi/detail/${materialId}`,
+    });
+  }
+
+  return result;
 };
 
 export const getMaterialCommentsService = async (materialId, user) => {
@@ -523,8 +535,9 @@ export const addMaterialCommentService = async (materialId, { konten, parent_id 
     throw new AppError('Diskusi hanya dibuka untuk materi yang sudah disetujui.', 403);
   }
 
+  let parent = null;
   if (parent_id) {
-    const parent = await socialRepo.getCommentById(parent_id);
+    parent = await socialRepo.getCommentById(parent_id);
     if (!parent || Number(parent.materi_id) !== Number(materialId)) {
       throw new AppError('Komentar induk tidak ditemukan pada materi ini.', 400);
     }
@@ -543,6 +556,20 @@ export const addMaterialCommentService = async (materialId, { konten, parent_id 
       type: 'new_comment',
       title: 'Komentar Baru pada Materi Anda',
       message: `${user.full_name} berdiskusi pada materi "${meta.judul}".`,
+      referenceLink: `/akademik/materi/detail/${materialId}`,
+    });
+  }
+
+  if (
+    parent &&
+    Number(parent.user_id) !== Number(user.id) &&
+    Number(parent.user_id) !== Number(meta.uploaded_by)
+  ) {
+    await createNotification({
+      userId: parent.user_id,
+      type: 'new_comment',
+      title: 'Balasan Baru pada Komentar Anda',
+      message: `${user.full_name} membalas komentar Anda pada materi "${meta.judul}".`,
       referenceLink: `/akademik/materi/detail/${materialId}`,
     });
   }

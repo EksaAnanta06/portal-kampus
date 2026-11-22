@@ -8,3 +8,6 @@ export * from './backButton';
 export * from './fileDownloader';
 export * from './externalBrowser';
 export * from './share';
+export * from './notifications';
+export * from './backgroundPush';
+export * from './googleAuth';

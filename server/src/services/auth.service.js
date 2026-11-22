@@ -5,6 +5,8 @@ import { pool } from '../config/db.js';
 import { env } from '../config/env.js';
 import { sendMailOrLog } from '../config/mailer.js';
 import { AppError } from '../utils/AppError.js';
+import { revokeAllNotificationStreamTokensForUser } from '../queries/campus.queries.js';
+import { notificationHub } from './notificationHub.js';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -210,6 +212,8 @@ export const resetPasswordService = async ({ token, password }) => {
     await markPasswordResetUsed(resetRecord.id, connection);
 
     await connection.commit();
+    await revokeAllNotificationStreamTokensForUser(resetRecord.user_id).catch(() => {});
+    notificationHub.disconnectUser(resetRecord.user_id);
   } catch (err) {
     await connection.rollback();
     throw err;
@@ -266,6 +270,9 @@ export const changePasswordService = async ({
   } finally {
     connection.release();
   }
+
+  await revokeAllNotificationStreamTokensForUser(userId).catch(() => {});
+  notificationHub.disconnectUser(userId);
 
   return { accessToken, refreshToken };
 };

@@ -13,6 +13,8 @@ import { authApi } from '../../api/auth.api';
 import { getErrorMessage } from '../../api/axiosInstance';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
+import { isNativePlatform } from '../../platform/detection';
+import { setNativeRefreshToken } from '../../platform/authStorage';
 
 export default function ChangePasswordSection() {
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -47,6 +49,9 @@ export default function ChangePasswordSection() {
       });
       if (res?.data?.accessToken) {
         setAuth({ accessToken: res.data.accessToken });
+      }
+      if (isNativePlatform() && res?.data?.refreshToken) {
+        await setNativeRefreshToken(res.data.refreshToken);
       }
       setForm({ current_password: '', new_password: '', confirm_password: '' });
       toast.success(res.message || 'Kata sandi berhasil diperbarui.');

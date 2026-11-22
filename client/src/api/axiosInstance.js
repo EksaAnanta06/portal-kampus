@@ -1,19 +1,44 @@
 // FILE: client/src/api/axiosInstance.js
 import axios from 'axios';
 import { getAccessToken, setAuthTokens, clearAuthSession } from './authBridge';
-import { isNativePlatform, isAndroid } from '../platform/detection';
+import { isNativePlatform } from '../platform/detection';
+import {
+  getNativeRefreshToken,
+  setNativeRefreshToken,
+  clearNativeRefreshToken,
+} from '../platform/authStorage';
+
+const STATIC_TUNNEL_API_URL = 'https://nondecayed-bodhi-bardier.ngrok-free.dev/api/v1';
+
+const isNonLocalHttpUrl = (url) =>
+  Boolean(
+    url &&
+      (url.startsWith('http://') || url.startsWith('https://')) &&
+      !url.includes('localhost') &&
+      !url.includes('127.0.0.1')
+  );
 
 const getDefaultApiBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL;
-  // Jika di native Android, baseURL tidak boleh berupa path relatif (seperti /api/v1) karena WebView native mengarah ke https://localhost (internal APK) yang tidak memiliki server API
-  if (typeof window !== 'undefined' && isNativePlatform() && isAndroid()) {
-    if (envUrl && (envUrl.startsWith('http://') || envUrl.startsWith('https://'))) {
-      return envUrl;
-    }
-    // IP LAN komputer host (Wi-Fi) untuk HP fisik dan fallback emulator
-    return 'http://192.168.101.5:5000/api/v1';
+  const envUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+
+  // Jika VITE_API_BASE_URL berupa URL statis publik (mis. Ngrok/produksi), pakai endpoint yang sama di FE & Android
+  if (isNonLocalHttpUrl(envUrl)) {
+    return envUrl;
   }
-  return envUrl || 'http://localhost:5000/api/v1';
+
+  // Jika di native (Android / iOS), jangan pakai localhost atau path relatif
+  if (typeof window !== 'undefined' && isNativePlatform()) {
+    if (
+      window.location?.origin &&
+      window.location.hostname !== 'localhost' &&
+      window.location.hostname !== '127.0.0.1'
+    ) {
+      return `${window.location.origin}/api/v1`;
+    }
+    return STATIC_TUNNEL_API_URL;
+  }
+
+  return envUrl || STATIC_TUNNEL_API_URL;
 };
 
 export const API_BASE_URL = getDefaultApiBaseUrl();
@@ -22,6 +47,10 @@ const axiosInstance = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true, // kirim cookie httpOnly refresh token
   timeout: 60000,
+  headers: {
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
 // Instance terpisah tanpa interceptor untuk memanggil /auth/refresh (mencegah loop)
@@ -29,13 +58,27 @@ export const refreshClient = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
   timeout: 20000,
+  headers: {
+    'Bypass-Tunnel-Reminder': 'true',
+    'ngrok-skip-browser-warning': 'true',
+  },
 });
 
-// ---------- Request: sisipkan access token dari memori (Zustand) ----------
+// ---------- Request: sisipkan header native & access token dari memori (Zustand) ----------
 axiosInstance.interceptors.request.use((config) => {
+  if (isNativePlatform()) {
+    config.headers['X-Client'] = 'native';
+  }
   const token = getAccessToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+refreshClient.interceptors.request.use((config) => {
+  if (isNativePlatform()) {
+    config.headers['X-Client'] = 'native';
   }
   return config;
 });
@@ -49,22 +92,59 @@ const processQueue = (error, token = null) => {
   failedQueue = [];
 };
 
-const AUTH_ENDPOINTS_WITHOUT_REFRESH = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/logout', '/auth/forgot-password', '/auth/reset-password'];
+const AUTH_ENDPOINTS_WITHOUT_REFRESH = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/refresh',
+  '/auth/logout',
+  '/auth/forgot-password',
+  '/auth/reset-password',
+  '/auth/google/exchange',
+  '/auth/google/pending-registration',
+  '/auth/google/complete-registration',
+];
 
 /** Memanggil endpoint refresh; satu permintaan saja walau dipanggil bersamaan */
 let refreshPromise = null;
 export const requestNewAccessToken = () => {
   if (!refreshPromise) {
-    refreshPromise = refreshClient
-      .post('/auth/refresh')
-      .then((res) => {
-        const { user, accessToken } = res.data.data;
+    refreshPromise = (async () => {
+      const native = isNativePlatform();
+      let payload;
+      const headers = {};
+
+      if (native) {
+        headers['X-Client'] = 'native';
+        const storedRefreshToken = await getNativeRefreshToken();
+        if (!storedRefreshToken) {
+          const err = new Error('NO_NATIVE_SESSION');
+          err.code = 'NO_NATIVE_SESSION';
+          throw err;
+        }
+        payload = { refreshToken: storedRefreshToken };
+        headers['X-Refresh-Token'] = storedRefreshToken;
+      }
+
+      try {
+        const res = await refreshClient.post('/auth/refresh', payload, { headers });
+        const { user, accessToken, refreshToken } = res.data.data;
+        if (native && refreshToken) {
+          await setNativeRefreshToken(refreshToken);
+        }
         setAuthTokens({ user, accessToken });
         return accessToken;
-      })
-      .finally(() => {
-        refreshPromise = null;
-      });
+      } catch (err) {
+        const status = err?.response?.status;
+        // Hanya hapus token tersimpan jika server secara eksplisit menolak sesi (401/403),
+        // JANGAN hapus saat jaringan/4G putus sementara agar user tidak otomatis logout saat offline.
+        if (native && (status === 401 || status === 403)) {
+          await clearNativeRefreshToken();
+        }
+        throw err;
+      }
+    })().finally(() => {
+      refreshPromise = null;
+    });
   }
   return refreshPromise;
 };

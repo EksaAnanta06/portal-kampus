@@ -77,11 +77,24 @@ export const env = {
   },
 
   smtp: {
-    host: process.env.SMTP_HOST || '',
+    host:
+      process.env.SMTP_HOST ||
+      (process.env.EMAIL_USER && process.env.EMAIL_PASS ? 'smtp.gmail.com' : ''),
     port: Number(process.env.SMTP_PORT) || 587,
-    user: process.env.SMTP_USER || '',
-    pass: process.env.SMTP_PASS || '',
-    from: process.env.SMTP_FROM || 'Portal Kampus UNAS PASIM <no-reply@pasim.ac.id>',
+    user: process.env.SMTP_USER || process.env.EMAIL_USER || '',
+    pass: process.env.SMTP_PASS || process.env.EMAIL_PASS || '',
+    from:
+      process.env.SMTP_FROM ||
+      (process.env.EMAIL_USER
+        ? `Portal Kampus UNAS PASIM <${process.env.EMAIL_USER}>`
+        : 'Portal Kampus UNAS PASIM <no-reply@pasim.ac.id>'),
+  },
+
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID || '',
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
+    callbackUrl: process.env.GOOGLE_CALLBACK_URL || '',
+    nativeCallbackUri: process.env.GOOGLE_NATIVE_CALLBACK_URI || 'portalpasim://auth/callback',
   },
 
   vapid: {

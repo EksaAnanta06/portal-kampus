@@ -13,6 +13,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import IconButton from '@mui/material/IconButton';
 import LinearProgress from '@mui/material/LinearProgress';
+import CircularProgress from '@mui/material/CircularProgress';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
 import BookmarkBorderRoundedIcon from '@mui/icons-material/BookmarkBorderRounded';
@@ -44,6 +45,7 @@ import {
   MAX_DOC_FILE_SIZE_MB,
 } from '../../utils/constants';
 import { extractYoutubeVideoId } from '../../utils/youtube';
+import { isNativePlatform, downloadRemoteFile, openExternalUrl } from '../../platform';
 
 const formatBytes = (bytes) => {
   if (!bytes || bytes === 0) return '0 B';
@@ -89,6 +91,7 @@ export default function MaterialDetailPage() {
   const [deletingComment, setDeletingComment] = useState(false);
   const [moderationDialog, setModerationDialog] = useState({ open: false, status: '', note: '' });
   const [submittingModeration, setSubmittingModeration] = useState(false);
+  const [downloadingKey, setDownloadingKey] = useState(null);
 
   const isStaff = user?.role === 'admin' || user?.role === 'moderator';
   const isOwner = material?.uploaded_by === user?.id;
@@ -172,6 +175,31 @@ export default function MaterialDetailPage() {
         );
       })
       .catch(() => {});
+  };
+
+  // Unduh berkas materi (mendukung Android native via Filesystem + Share + simpan ke Documents/PortalPasim)
+  const handleDownloadFile = async (e, { key, url, fileName, fileFormat }) => {
+    e.preventDefault();
+    if (!url || downloadingKey) return;
+    setDownloadingKey(key);
+    handleTrackDownload();
+    try {
+      if (isNativePlatform()) {
+        toast.info(`Mengunduh ${fileName || 'berkas'}...`);
+      }
+      const result = await downloadRemoteFile(url, fileName, fileFormat);
+      if (result?.savedToDocuments) {
+        toast.success(`Berkas tersimpan di Documents/PortalPasim/${result.filename}`);
+      } else if (result?.openedInBrowser) {
+        toast.info('Membuka berkas di browser perangkat...');
+      } else {
+        toast.success(`Unduhan "${fileName || result?.filename || 'berkas'}" siap!`);
+      }
+    } catch {
+      toast.error('Gagal mengunduh berkas materi. Silakan coba lagi.');
+    } finally {
+      setDownloadingKey(null);
+    }
   };
 
   // Tambah Komentar
@@ -573,7 +601,13 @@ export default function MaterialDetailPage() {
             href={safeExternalUrl}
             target="_blank"
             rel="noopener noreferrer"
-            onClick={handleTrackDownload}
+            onClick={(e) => {
+              handleTrackDownload();
+              if (isNativePlatform()) {
+                e.preventDefault();
+                openExternalUrl(safeExternalUrl);
+              }
+            }}
             className="inline-flex min-h-[44px] shrink-0 items-center justify-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
           >
             <span>Buka Tautan</span>
@@ -685,17 +719,31 @@ export default function MaterialDetailPage() {
                   </div>
                 </div>
 
-                <a
-                  href={f.file_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download
-                  onClick={handleTrackDownload}
-                  className="inline-flex min-h-[44px] shrink-0 items-center gap-1 rounded-xl bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-emerald-700 transition"
+                <button
+                  type="button"
+                  disabled={downloadingKey === `file-${f.id}`}
+                  onClick={(e) =>
+                    handleDownloadFile(e, {
+                      key: `file-${f.id}`,
+                      url: f.file_url,
+                      fileName: f.file_name,
+                      fileFormat: f.file_format,
+                    })
+                  }
+                  className="inline-flex min-h-[44px] shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border-0 bg-emerald-600 px-4 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  <DownloadRoundedIcon sx={{ fontSize: 16 }} />
-                  <span>Unduh</span>
-                </a>
+                  {downloadingKey === `file-${f.id}` ? (
+                    <>
+                      <CircularProgress size={14} color="inherit" />
+                      <span>Mengunduh...</span>
+                    </>
+                  ) : (
+                    <>
+                      <DownloadRoundedIcon sx={{ fontSize: 16 }} />
+                      <span>Unduh</span>
+                    </>
+                  )}
+                </button>
               </div>
             ))
           )}
@@ -717,16 +765,21 @@ export default function MaterialDetailPage() {
                   <span className="min-w-0 truncate">
                     v{v.version_num} • {v.file_name} ({v.changelog_note || 'Pembaruan berkas'})
                   </span>
-                  <a
-                    href={v.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download
-                    onClick={handleTrackDownload}
-                    className="shrink-0 text-emerald-600 font-semibold hover:underline"
+                  <button
+                    type="button"
+                    disabled={downloadingKey === `ver-${v.id}`}
+                    onClick={(e) =>
+                      handleDownloadFile(e, {
+                        key: `ver-${v.id}`,
+                        url: v.file_url,
+                        fileName: v.file_name,
+                        fileFormat: v.file_format,
+                      })
+                    }
+                    className="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-xs font-semibold text-emerald-600 hover:underline disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Unduh
-                  </a>
+                    {downloadingKey === `ver-${v.id}` ? 'Mengunduh...' : 'Unduh'}
+                  </button>
                 </div>
               ))}
             </div>

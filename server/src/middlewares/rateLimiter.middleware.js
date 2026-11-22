@@ -6,9 +6,38 @@ export const generalLimiter = rateLimit({
   max: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) =>
+    req.path === '/v1/campus/notifications/stream' ||
+    req.path === '/v1/campus/notifications/pending',
   message: {
     success: false,
     message: 'Terlalu banyak permintaan dari IP ini, silakan coba lagi setelah 15 menit.',
+    data: null,
+    meta: null,
+  },
+});
+
+export const notificationStreamLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 menit
+  max: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Terlalu banyak koneksi ulang stream notifikasi. Coba sebentar lagi.',
+    data: null,
+    meta: null,
+  },
+});
+
+export const notificationPollLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 menit
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Terlalu banyak permintaan sinkronisasi notifikasi. Coba sebentar lagi.',
     data: null,
     meta: null,
   },

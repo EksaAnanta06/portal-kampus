@@ -1,6 +1,7 @@
 // FILE: client/src/pages/focus/FocusTimerPage.jsx
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -15,7 +16,15 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import CalendarMonthRoundedIcon from '@mui/icons-material/CalendarMonthRounded';
 import { focusApi } from '../../api/focus.api';
 import useFocusTimer from '../../hooks/useFocusTimer';
-import { formatTimerClock } from '../../store/useFocusTimerStore';
+import useFocusTimerStore, { formatTimerClock } from '../../store/useFocusTimerStore';
+import { toast } from '../../store/useThemeStore';
+import { ensureNativeBackgroundPush } from '../../services/nativePushSync';
+import {
+  isNativePlatform,
+  getNativeNotificationStatus,
+  enableNativeNotifications,
+  openExactAlarmSettings,
+} from '../../platform';
 import { TIMER_MODE_LABELS } from '../../utils/constants';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import FocusSettingsModal from '../../components/focus/FocusSettingsModal';
@@ -57,6 +66,42 @@ export default function FocusTimerPage() {
   const [tasksLoaded, setTasksLoaded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
+  const isNative = isNativePlatform();
+  const [nativeNotif, setNativeNotif] = useState({
+    checked: !isNative,
+    enabled: true,
+    permission: 'granted',
+    exactAlarm: 'granted',
+    loading: false,
+  });
+
+  const refreshNativeNotifStatus = useCallback(async () => {
+    if (!isNative) return;
+    const status = await getNativeNotificationStatus();
+    setNativeNotif({
+      checked: true,
+      enabled: Boolean(status.enabled),
+      permission: status.permission || 'prompt',
+      exactAlarm: status.exactAlarm || 'granted',
+      loading: false,
+    });
+  }, [isNative]);
+
+  useEffect(() => {
+    if (!isNative || settingsOpen) return;
+    refreshNativeNotifStatus();
+  }, [isNative, settingsOpen, refreshNativeNotifStatus]);
+
+  useEffect(() => {
+    if (!isNative || typeof document === 'undefined') return undefined;
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshNativeNotifStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, [isNative, refreshNativeNotifStatus]);
 
   useEffect(() => {
     let active = true;
@@ -146,8 +191,40 @@ export default function FocusTimerPage() {
     }
   };
 
+  const handleEnableNativeNotif = async () => {
+    setNativeNotif((prev) => ({ ...prev, loading: true }));
+    try {
+      await enableNativeNotifications({ sendConfirmation: true });
+      await refreshNativeNotifStatus();
+      useFocusTimerStore.getState().syncNativeNotifications();
+      ensureNativeBackgroundPush({ forceNew: true }).catch(() => {});
+      toast.success('Notifikasi Pomodoro Android aktif!');
+    } catch (err) {
+      setNativeNotif((prev) => ({ ...prev, loading: false }));
+      toast.error(err?.message || 'Gagal mengaktifkan notifikasi Android.');
+    }
+  };
+
+  const handleOpenExactAlarm = async () => {
+    setNativeNotif((prev) => ({ ...prev, loading: true }));
+    try {
+      await openExactAlarmSettings();
+    } finally {
+      await refreshNativeNotifStatus();
+    }
+  };
+
   const handlePrimaryAction = async () => {
     if (!activeSession) {
+      if (isNative && !nativeNotif.enabled && nativeNotif.permission === 'prompt') {
+        try {
+          await enableNativeNotifications({ sendConfirmation: false });
+          ensureNativeBackgroundPush({ forceNew: true }).catch(() => {});
+          await refreshNativeNotifStatus();
+        } catch {
+          await refreshNativeNotifStatus();
+        }
+      }
       await startSession({
         tipe: selectedMode,
         tugas_id: selectedTaskId ? Number(selectedTaskId) : null,
@@ -207,6 +284,46 @@ export default function FocusTimerPage() {
           </IconButton>
         </Tooltip>
       </div>
+
+      {isNative && nativeNotif.checked && !nativeNotif.enabled && (
+        <Alert
+          severity="warning"
+          className="mt-3 !rounded-2xl !items-center"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              disabled={nativeNotif.loading}
+              onClick={handleEnableNativeNotif}
+              className="!font-bold shrink-0"
+            >
+              {nativeNotif.loading ? 'Proses...' : 'Aktifkan'}
+            </Button>
+          }
+        >
+          Notifikasi Android belum aktif. Aktifkan agar alarm Pomodoro tampil di panel HP.
+        </Alert>
+      )}
+
+      {isNative && nativeNotif.checked && nativeNotif.enabled && nativeNotif.exactAlarm === 'denied' && (
+        <Alert
+          severity="info"
+          className="mt-3 !rounded-2xl !items-center"
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              disabled={nativeNotif.loading}
+              onClick={handleOpenExactAlarm}
+              className="!font-bold shrink-0"
+            >
+              Izinkan Alarm
+            </Button>
+          }
+        >
+          Aktifkan izin &ldquo;Alarm & pengingat&rdquo; agar notifikasi selesai tepat waktu di background.
+        </Alert>
+      )}
 
       {/* Pusat Timer Tenang */}
       <div className="card-surface my-4 flex flex-col items-center justify-center px-5 py-8 sm:px-8 sm:py-10 text-center">

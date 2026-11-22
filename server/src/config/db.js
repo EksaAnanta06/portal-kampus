@@ -112,6 +112,44 @@ export const ensurePokerSchema = async () => {
   return pokerSchemaPromise;
 };
 
+let googleAuthSchemaInitialized = false;
+let googleAuthSchemaPromise = null;
+
+/**
+ * Memastikan kolom dan indeks unik Google OAuth tersedia pada tabel users.
+ */
+export const ensureGoogleAuthSchema = async () => {
+  if (googleAuthSchemaInitialized) return;
+  if (googleAuthSchemaPromise) return googleAuthSchemaPromise;
+
+  googleAuthSchemaPromise = (async () => {
+    const [colRows] = await pool.query(
+      `SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'google_id'
+       LIMIT 1`
+    );
+    if (colRows.length === 0) {
+      await pool.query('ALTER TABLE users ADD COLUMN google_id VARCHAR(128) NULL');
+    }
+
+    const [idxRows] = await pool.query(
+      `SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = 'google_id'
+       LIMIT 1`
+    );
+    if (idxRows.length === 0) {
+      await pool.query('ALTER TABLE users ADD UNIQUE INDEX idx_users_google_id (google_id)');
+    }
+
+    googleAuthSchemaInitialized = true;
+  })().catch((err) => {
+    googleAuthSchemaPromise = null;
+    throw err;
+  });
+
+  return googleAuthSchemaPromise;
+};
+
 let focusSchemaInitialized = false;
 let focusSchemaPromise = null;
 
@@ -427,6 +465,12 @@ export const testDbConnection = async () => {
     await ensurePokerSchema();
   } catch (err) {
     console.warn('⚠️ [DB] Gagal menginisialisasi skema tabel poker:', err.message);
+  }
+
+  try {
+    await ensureGoogleAuthSchema();
+  } catch (err) {
+    console.warn('⚠️ [DB] Gagal menginisialisasi skema kolom Google Auth:', err.message);
   }
 
   await verifyDatabaseSchema();

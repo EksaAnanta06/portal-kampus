@@ -5,6 +5,17 @@ import { getErrorMessage } from '../api/axiosInstance';
 import { toast } from './useThemeStore';
 import { TIMER_MODE_LABELS } from '../utils/constants';
 import { computeClientRemainingSeconds, formatTimerClock } from '../utils/focusTimerMath';
+import {
+  isNativePlatform,
+  hapticSuccess,
+  showNativeNotification,
+  showFocusRunningNotification,
+  cancelFocusRunningNotification,
+  scheduleFocusTimerNotification,
+  cancelFocusTimerNotification,
+  onNativeAppResume,
+  CHANNEL_FOCUS,
+} from '../platform';
 
 export { computeClientRemainingSeconds, formatTimerClock };
 
@@ -37,24 +48,64 @@ const playCompletionChime = () => {
   }
 };
 
+const buildFocusDoneMessage = (session) => {
+  const label = TIMER_MODE_LABELS[session?.tipe] || 'Fokus';
+  const title = `${label} Selesai!`;
+  const body = session?.judul_tugas
+    ? `Sesi ${label} untuk "${session.judul_tugas}" telah selesai.`
+    : `Sesi ${label} telah berakhir. Saatnya mengambil jeda atau mencatat progres.`;
+  return { title, body };
+};
+
+const notifiedSessionIds = new Set();
+
 const notifySessionFinished = (session, settings) => {
+  if (session?.id != null) {
+    if (notifiedSessionIds.has(session.id)) return;
+    notifiedSessionIds.add(session.id);
+    if (notifiedSessionIds.size > 50) {
+      const oldestId = notifiedSessionIds.values().next().value;
+      notifiedSessionIds.delete(oldestId);
+    }
+  }
+
   if (settings?.suara_aktif !== false) {
     playCompletionChime();
   }
-  if (settings?.getar_aktif !== false && typeof navigator !== 'undefined' && navigator.vibrate) {
-    try {
-      navigator.vibrate([220, 100, 220]);
-    } catch {
-      // Abaikan jika tidak didukung
+  if (settings?.getar_aktif !== false) {
+    if (isNativePlatform()) {
+      hapticSuccess().catch(() => {});
+    } else if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      try {
+        navigator.vibrate([220, 100, 220]);
+      } catch {
+        // Abaikan jika tidak didukung
+      }
     }
   }
+
+  const { title, body } = buildFocusDoneMessage(session);
+  if (isNativePlatform()) {
+    (async () => {
+      await cancelFocusRunningNotification().catch(() => {});
+      await cancelFocusTimerNotification().catch(() => {});
+      const numericId = Number(session?.id);
+      const notifId = Number.isFinite(numericId) && numericId > 0 ? 900010 + numericId : undefined;
+      await showNativeNotification({
+        id: notifId,
+        title,
+        body,
+        channelId: CHANNEL_FOCUS,
+        link: '/fokus',
+      });
+    })().catch((err) => {
+      console.warn('[FocusTimer] Gagal menampilkan notifikasi selesai:', err);
+    });
+    return;
+  }
+
   if (typeof window !== 'undefined' && 'Notification' in window && window.Notification?.permission === 'granted') {
     try {
-      const label = TIMER_MODE_LABELS[session?.tipe] || 'Fokus';
-      const title = `${label} Selesai!`;
-      const body = session?.judul_tugas
-        ? `Sesi ${label} untuk "${session.judul_tugas}" telah selesai.`
-        : `Sesi ${label} telah berakhir. Saatnya mengambil jeda atau mencatat progres.`;
       new window.Notification(title, { body, icon: '/logo-pasim.png' });
     } catch {
       // Fallback aman bila constructor Notification dibatasi pada Android WebView
@@ -73,6 +124,7 @@ const broadcastSyncSignal = () => {
 let globalTickInterval = null;
 let wakeLockSentinel = null;
 let listenersBound = false;
+let removeGlobalListeners = null;
 let finishingSessionId = null;
 let syncPromise = null;
 
@@ -135,6 +187,38 @@ const useFocusTimerStore = create((set, get) => ({
   lastContextTaskId: null,
   lastContextScheduleId: null,
 
+  syncNativeNotifications: () => {
+    if (!isNativePlatform()) return;
+    const { activeSession, serverOffsetMs } = get();
+
+    if (activeSession?.status === 'berjalan') {
+      const rem = computeClientRemainingSeconds(activeSession, serverOffsetMs);
+      if (rem > 1) {
+        const endAtMs = Date.now() + rem * 1000;
+        const { title, body } = buildFocusDoneMessage(activeSession);
+        showFocusRunningNotification({
+          modeLabel: TIMER_MODE_LABELS[activeSession.tipe] || 'Fokus',
+          taskLabel: activeSession.judul_tugas || 'Fokus Bebas',
+          endAtMs,
+          isPaused: false,
+        }).catch(() => {});
+        scheduleFocusTimerNotification({ endAtMs, title, body }).catch(() => {});
+      }
+    } else if (activeSession?.status === 'dijeda') {
+      const rem = computeClientRemainingSeconds(activeSession, serverOffsetMs);
+      cancelFocusTimerNotification().catch(() => {});
+      showFocusRunningNotification({
+        modeLabel: TIMER_MODE_LABELS[activeSession.tipe] || 'Fokus',
+        taskLabel: activeSession.judul_tugas || 'Fokus Bebas',
+        isPaused: true,
+        remainingText: formatTimerClock(rem),
+      }).catch(() => {});
+    } else {
+      cancelFocusRunningNotification().catch(() => {});
+      cancelFocusTimerNotification().catch(() => {});
+    }
+  },
+
   _applyServerPayload: ({ session, autoCompletedSession, settings, serverNow }, options = {}) => {
     const serverMs = serverNow ? Date.parse(serverNow) : null;
     const offset = Number.isFinite(serverMs) ? serverMs - Date.now() : get().serverOffsetMs;
@@ -157,9 +241,17 @@ const useFocusTimerStore = create((set, get) => ({
     if (session?.status === 'berjalan') {
       ensureWakeLock();
       get()._ensureTicker();
+      get().syncNativeNotifications();
+    } else if (session?.status === 'dijeda') {
+      releaseWakeLock();
+      get().syncNativeNotifications();
     } else {
       releaseWakeLock();
       if (!session) get()._stopTicker();
+      if (!autoCompletedSession) {
+        cancelFocusRunningNotification().catch(() => {});
+        cancelFocusTimerNotification().catch(() => {});
+      }
     }
 
     if (autoCompletedSession && !options.silentFinish) {
@@ -187,6 +279,15 @@ const useFocusTimerStore = create((set, get) => ({
       document.addEventListener('visibilitychange', handleVisibilityOrFocus);
       window.addEventListener('focus', handleVisibilityOrFocus);
       window.addEventListener('storage', handleStorage);
+      const unsubAppResume = onNativeAppResume(() => {
+        handleVisibilityOrFocus();
+      });
+      removeGlobalListeners = () => {
+        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        window.removeEventListener('storage', handleStorage);
+        unsubAppResume();
+      };
     }
 
     if (globalTickInterval) return;
@@ -224,12 +325,12 @@ const useFocusTimerStore = create((set, get) => ({
 
   _handleNaturalFinish: async (session) => {
     const settings = get().settings;
+    notifySessionFinished(session, settings);
     try {
       const res = await focusApi.completeTimer(session.id, {
         tandai_jadwal_selesai: session.tipe === 'fokus',
       });
       const completed = res.data?.session || { ...session, status: 'selesai' };
-      notifySessionFinished(completed, settings);
       broadcastSyncSignal();
 
       set((state) => ({
@@ -368,6 +469,8 @@ const useFocusTimerStore = create((set, get) => ({
       });
       updateDocumentTitle(null, 0);
       releaseWakeLock();
+      cancelFocusRunningNotification().catch(() => {});
+      cancelFocusTimerNotification().catch(() => {});
       get()._stopTicker();
       broadcastSyncSignal();
       return completed;
@@ -388,6 +491,8 @@ const useFocusTimerStore = create((set, get) => ({
       set({ activeSession: null, remainingSeconds: 0 });
       updateDocumentTitle(null, 0);
       releaseWakeLock();
+      cancelFocusRunningNotification().catch(() => {});
+      cancelFocusTimerNotification().catch(() => {});
       get()._stopTicker();
       broadcastSyncSignal();
       toast.info('Sesi timer dihentikan.');
@@ -463,10 +568,18 @@ const useFocusTimerStore = create((set, get) => ({
 
   clearTimerState: () => {
     finishingSessionId = null;
+    notifiedSessionIds.clear();
     releaseWakeLock();
+    cancelFocusRunningNotification().catch(() => {});
+    cancelFocusTimerNotification().catch(() => {});
     if (globalTickInterval) {
       clearInterval(globalTickInterval);
       globalTickInterval = null;
+    }
+    if (removeGlobalListeners) {
+      removeGlobalListeners();
+      removeGlobalListeners = null;
+      listenersBound = false;
     }
     updateDocumentTitle(null, 0);
     set({

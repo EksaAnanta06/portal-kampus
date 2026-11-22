@@ -20,11 +20,19 @@ import {
   deleteEventComment,
   getNotifications,
   readNotifications,
+  createNotificationPushSession,
+  revokeNotificationPushSession,
+  streamNotifications,
+  pollPendingNotifications,
   globalSearch,
   getAdminStats,
 } from '../controllers/campus.controller.js';
 import { authenticate, optionalAuth } from '../middlewares/auth.middleware.js';
 import { authorizeRoles } from '../middlewares/role.middleware.js';
+import {
+  notificationStreamLimiter,
+  notificationPollLimiter,
+} from '../middlewares/rateLimiter.middleware.js';
 import { uploadSingleImage } from '../middlewares/upload.middleware.js';
 import { validate } from '../middlewares/validate.middleware.js';
 import { announcementSchema, eventSchema, eventCommentSchema } from '../validators/campus.validator.js';
@@ -90,6 +98,10 @@ router.delete('/events/:id/comments/:commentId', authenticate, deleteEventCommen
 
 // Notifikasi Pengguna
 router.get('/notifications', authenticate, getNotifications);
+router.get('/notifications/stream', notificationStreamLimiter, streamNotifications);
+router.get('/notifications/pending', notificationPollLimiter, pollPendingNotifications);
+router.post('/notifications/push-session', authenticate, createNotificationPushSession);
+router.delete('/notifications/push-session', optionalAuth, revokeNotificationPushSession);
 router.patch('/notifications/read-all', authenticate, readNotifications);
 router.patch('/notifications/:id/read', authenticate, readNotifications);
 

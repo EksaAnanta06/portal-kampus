@@ -6,7 +6,12 @@ import { unwrap } from './apiHelpers';
 export const authApi = {
   register: (payload) => unwrap(axiosInstance.post('/auth/register', payload)),
   login: (payload) => unwrap(axiosInstance.post('/auth/login', payload)),
-  logout: () => unwrap(axiosInstance.post('/auth/logout')),
+  exchangeGoogleCode: (code) => unwrap(axiosInstance.post('/auth/google/exchange', { code })),
+  getGoogleRegistrationProfile: (token) =>
+    unwrap(axiosInstance.get('/auth/google/pending-registration', { params: { token } })),
+  completeGoogleRegistration: (payload) =>
+    unwrap(axiosInstance.post('/auth/google/complete-registration', payload)),
+  logout: (payload) => unwrap(axiosInstance.post('/auth/logout', payload)),
   me: () => unwrap(axiosInstance.get('/auth/me')),
   changePassword: (payload) => unwrap(axiosInstance.patch('/auth/change-password', payload)),
   forgotPassword: (email) => unwrap(axiosInstance.post('/auth/forgot-password', { email })),

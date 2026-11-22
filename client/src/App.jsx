@@ -13,13 +13,21 @@ import { ASSIGNMENT_HUB_ROLES } from './utils/constants';
 import { registerPortalServiceWorker } from './utils/pushNotifications';
 import UpdateBanner from './components/pwa/UpdateBanner';
 import InstallPromptBanner from './components/pwa/InstallPromptBanner';
-import { syncStatusBarTheme, initBackButtonListener } from './platform';
+import {
+  syncStatusBarTheme,
+  initBackButtonListener,
+  initNativeNotificationListeners,
+  initNativePushLinkListener,
+  initGoogleDeepLinkListener,
+} from './platform';
+import { ensureNativeBackgroundPush } from './services/nativePushSync';
 
 // Halaman di-lazy-load agar bundle awal kecil
 const HomePage = lazy(() => import('./pages/HomePage'));
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/auth/RegisterPage'));
 const ForgotResetPasswordPage = lazy(() => import('./pages/auth/ForgotResetPasswordPage'));
+const GoogleAuthCallbackPage = lazy(() => import('./pages/auth/GoogleAuthCallbackPage'));
 const loadAngkatanListPage = () => import('./pages/gallery/AngkatanListPage');
 const AngkatanListPage = lazy(loadAngkatanListPage);
 const AngkatanDetailPage = lazy(() => import('./pages/gallery/AngkatanDetailPage'));
@@ -66,20 +74,35 @@ function ScrollToTop() {
 
 export default function App() {
   const initAuth = useAuthStore((s) => s.initAuth);
+  const userId = useAuthStore((s) => s.user?.id);
+  const hasAccessToken = useAuthStore((s) => Boolean(s.accessToken));
   const location = useLocation();
   const navigate = useNavigate();
 
-  // Inisialisasi platform native (status bar & back button)
+  // Inisialisasi platform native (status bar, back button, & notifikasi lokal)
   useEffect(() => {
     syncStatusBarTheme('dark', '#0f172a');
     const cleanupBack = initBackButtonListener({
       navigate,
       getCurrentPath: () => window.location.pathname,
     });
+    const cleanupNotif = initNativeNotificationListeners({ navigate });
+    const cleanupPushLink = initNativePushLinkListener(navigate);
+    const cleanupGoogleDeepLink = initGoogleDeepLinkListener(navigate);
     return () => {
       cleanupBack();
+      cleanupNotif();
+      cleanupPushLink();
+      cleanupGoogleDeepLink();
     };
   }, [navigate]);
+
+  // Pastikan layanan push real-time native Android berjalan saat pengguna login
+  useEffect(() => {
+    if (userId && hasAccessToken) {
+      ensureNativeBackgroundPush({ userId }).catch(() => {});
+    }
+  }, [userId, hasAccessToken]);
 
   // Pulihkan sesi dari cookie refresh token saat aplikasi dibuka & preload rute utama saat idle
   useEffect(() => {
@@ -157,6 +180,7 @@ export default function App() {
           <Route element={<AuthLayout />}>
             <Route path="login" element={<LoginPage />} />
             <Route path="register" element={<RegisterPage />} />
+            <Route path="auth/google/callback" element={<GoogleAuthCallbackPage />} />
             <Route path="lupa-password" element={<ForgotResetPasswordPage />} />
             <Route path="reset-password" element={<ForgotResetPasswordPage />} />
           </Route>

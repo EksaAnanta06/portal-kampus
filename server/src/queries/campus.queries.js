@@ -1,10 +1,14 @@
 // FILE: server/src/queries/campus.queries.js
+import crypto from 'crypto';
 import { pool } from '../config/db.js';
+import { notificationHub } from '../services/notificationHub.js';
 
 const columnExistsCache = new Map();
 const ENUM_VALUE_REGEX = /'((?:[^'\\]|\\.|'')*)'/g;
 let cachedNotificationEnumTypes = null;
 const warnedMissingNotificationTypes = new Set();
+let streamTableInitialized = false;
+let streamTablePromise = null;
 
 const truncateChars = (value, max) => Array.from(String(value ?? '')).slice(0, max).join('');
 
@@ -97,12 +101,29 @@ export const createNotification = async (
   const safeMessage = truncateChars(message, 300);
   const safeLink = referenceLink ? truncateChars(referenceLink, 255) : null;
 
+  const publishInserted = (insertId, emittedType) => {
+    if (!insertId) return;
+    setImmediate(() => {
+      notificationHub.publish(userId, {
+        id: Number(insertId),
+        user_id: Number(userId),
+        type: emittedType,
+        title: safeTitle,
+        message: safeMessage,
+        reference_link: safeLink,
+        is_read: 0,
+        created_at: new Date().toISOString(),
+      });
+    });
+  };
+
   try {
-    await db.query(
+    const [result] = await db.query(
       `INSERT INTO notifications (user_id, type, title, message, reference_link)
        VALUES (?, ?, ?, ?, ?)`,
       [userId, resolvedType, safeTitle, safeMessage, safeLink]
     );
+    publishInserted(result?.insertId, resolvedType);
   } catch (err) {
     if (!isDataTruncationError(err)) {
       throw err;
@@ -110,11 +131,12 @@ export const createNotification = async (
     cachedNotificationEnumTypes = null;
     if (resolvedType !== 'system') {
       try {
-        await db.query(
+        const [fallbackRes] = await db.query(
           `INSERT INTO notifications (user_id, type, title, message, reference_link)
            VALUES (?, ?, ?, ?, ?)`,
           [userId, 'system', safeTitle, safeMessage, safeLink]
         );
+        publishInserted(fallbackRes?.insertId, 'system');
         return;
       } catch (fallbackErr) {
         if (!isDataTruncationError(fallbackErr)) {
@@ -124,6 +146,135 @@ export const createNotification = async (
     }
     console.warn(`[DB Compat] Notifikasi dilewati karena batas kolom DB: ${err.message}`);
   }
+};
+
+const hashStreamToken = (rawToken) =>
+  crypto.createHash('sha256').update(String(rawToken || '')).digest('hex');
+
+export const ensureNotificationStreamTable = async () => {
+  if (streamTableInitialized) return;
+  if (streamTablePromise) return streamTablePromise;
+
+  streamTablePromise = (async () => {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notification_stream_tokens (
+        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        user_id INT UNSIGNED NOT NULL,
+        token_hash CHAR(64) NOT NULL UNIQUE,
+        device_label VARCHAR(120) NULL,
+        expires_at DATETIME NOT NULL,
+        last_used_at DATETIME NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT fk_nst_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        INDEX idx_nst_user (user_id),
+        INDEX idx_nst_expires (expires_at)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    streamTableInitialized = true;
+  })().catch((err) => {
+    streamTablePromise = null;
+    throw err;
+  });
+
+  return streamTablePromise;
+};
+
+export const createNotificationStreamToken = async (
+  userId,
+  { deviceLabel = null, ttlDays = 30 } = {}
+) => {
+  await ensureNotificationStreamTable();
+  const safeTtlDays = Math.max(1, Math.min(90, Number(ttlDays) || 30));
+
+  await pool.query(
+    'DELETE FROM notification_stream_tokens WHERE user_id = ? AND expires_at <= UTC_TIMESTAMP()',
+    [userId]
+  );
+
+  await pool.query(
+    `DELETE n1 FROM notification_stream_tokens n1
+     LEFT JOIN (
+       SELECT id FROM notification_stream_tokens WHERE user_id = ? ORDER BY id DESC LIMIT 9
+     ) keep ON keep.id = n1.id
+     WHERE n1.user_id = ? AND keep.id IS NULL`,
+    [userId, userId]
+  );
+
+  const streamToken = crypto.randomBytes(32).toString('hex');
+  const tokenHash = hashStreamToken(streamToken);
+  const safeLabel = deviceLabel ? truncateChars(deviceLabel, 120) : null;
+
+  await pool.query(
+    `INSERT INTO notification_stream_tokens (user_id, token_hash, device_label, expires_at)
+     VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY))`,
+    [userId, tokenHash, safeLabel, safeTtlDays]
+  );
+
+  return {
+    streamToken,
+    expiresAt: new Date(Date.now() + safeTtlDays * 24 * 60 * 60 * 1000).toISOString(),
+  };
+};
+
+export const findUserByNotificationStreamToken = async (rawToken) => {
+  await ensureNotificationStreamTable();
+  const trimmed = String(rawToken || '').trim();
+  if (!trimmed) return null;
+
+  const [rows] = await pool.query(
+    `SELECT nst.id AS token_id, u.id, u.role, u.status
+     FROM notification_stream_tokens nst
+     INNER JOIN users u ON u.id = nst.user_id
+     WHERE nst.token_hash = ? AND u.status = 'active' AND nst.expires_at > UTC_TIMESTAMP()
+     LIMIT 1`,
+    [hashStreamToken(trimmed)]
+  );
+
+  const row = rows[0];
+  if (!row) return null;
+
+  pool
+    .query('UPDATE notification_stream_tokens SET last_used_at = UTC_TIMESTAMP() WHERE id = ?', [
+      row.token_id,
+    ])
+    .catch(() => {});
+
+  return { id: row.id, role: row.role, status: row.status };
+};
+
+export const revokeNotificationStreamToken = async (rawToken) => {
+  await ensureNotificationStreamTable();
+  const trimmed = String(rawToken || '').trim();
+  if (!trimmed) return;
+  await pool.query('DELETE FROM notification_stream_tokens WHERE token_hash = ?', [
+    hashStreamToken(trimmed),
+  ]);
+};
+
+export const revokeAllNotificationStreamTokensForUser = async (userId) => {
+  await ensureNotificationStreamTable();
+  await pool.query('DELETE FROM notification_stream_tokens WHERE user_id = ?', [userId]);
+};
+
+export const getLatestNotificationId = async (userId) => {
+  const [rows] = await pool.query(
+    'SELECT COALESCE(MAX(id), 0) AS latest_id FROM notifications WHERE user_id = ?',
+    [userId]
+  );
+  return Number(rows[0]?.latest_id || 0);
+};
+
+export const getUnreadNotificationsAfterId = async (userId, afterId, limit = 20) => {
+  const safeLimit = Math.max(1, Math.min(50, Number(limit) || 20));
+  const [rows] = await pool.query(
+    `SELECT id, user_id, type, title, message, reference_link, is_read, created_at
+     FROM notifications
+     WHERE user_id = ? AND is_read = 0 AND id > ?
+     ORDER BY id ASC
+     LIMIT ?`,
+    [userId, Number(afterId) || 0, safeLimit]
+  );
+  return rows;
 };
 
 export const getUserNotifications = async (userId, limit = 25) => {

@@ -1,4 +1,7 @@
 // FILE: server/src/app.js
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import express from 'express';
 import helmet from 'helmet';
 import cors from 'cors';
@@ -9,6 +12,11 @@ import { sanitizeRequest } from './middlewares/validate.middleware.js';
 import { notFoundHandler, errorHandler } from './middlewares/error.middleware.js';
 import { buildAllowedOriginEntries, isOriginAllowed } from './utils/corsConfig.js';
 import apiRoutes from './routes/index.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const clientDistDir = path.resolve(__dirname, '../../client/dist');
+const clientIndexHtml = path.join(clientDistDir, 'index.html');
 
 const app = express();
 
@@ -85,8 +93,8 @@ app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 app.use(cookieParser());
 app.use(sanitizeRequest);
 
-// Root Health Check untuk Cloud Platform (Koyeb, Render, AWS, Docker)
-app.get(['/', '/healthz'], (_req, res) => {
+// Health Check untuk Cloud Platform (Koyeb, Render, AWS, Docker)
+app.get('/healthz', (_req, res) => {
   res.status(200).json({
     success: true,
     message: 'Portal Kampus UNAS PASIM API is running.',
@@ -97,7 +105,53 @@ app.get(['/', '/healthz'], (_req, res) => {
 // 4. Endpoint REST API Utama (/api/v1)
 app.use('/api/v1', apiRoutes);
 
-// 5. Penanganan 404 & Error Terpusat
+// 5. Penyajian Frontend SPA statis (client/dist) dengan no-cache untuk index.html agar update langsung aktif di Android WebView
+app.use(
+  express.static(clientDistDir, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      const normalized = filePath.replace(/\\/g, '/');
+      if (
+        normalized.endsWith('/index.html') ||
+        normalized.endsWith('/sw.js') ||
+        normalized.endsWith('/manifest.webmanifest')
+      ) {
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      } else if (normalized.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  })
+);
+
+// SPA Fallback (hindari /api dan /socket.io agar tetap JSON 404; fallback JSON health di '/' jika dist belum ada mis. deploy backend-only Docker/Koyeb)
+app.get('*', (req, res, next) => {
+  if (
+    req.path === '/api' ||
+    req.path.startsWith('/api/') ||
+    req.path.startsWith('/socket.io')
+  ) {
+    return next();
+  }
+  if (fs.existsSync(clientIndexHtml)) {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    return res.sendFile(clientIndexHtml);
+  }
+  if (req.path === '/') {
+    return res.status(200).json({
+      success: true,
+      message: 'Portal Kampus UNAS PASIM API is running.',
+      timestamp: new Date().toISOString(),
+    });
+  }
+  return next();
+});
+
+// 6. Penanganan 404 & Error Terpusat
 app.use(notFoundHandler);
 app.use(errorHandler);
 
