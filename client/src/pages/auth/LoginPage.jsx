@@ -14,7 +14,7 @@ import LoginRoundedIcon from '@mui/icons-material/LoginRounded';
 import useAuthStore from '../../store/useAuthStore';
 import { toast } from '../../store/useThemeStore';
 import { API_BASE_URL, getErrorMessage } from '../../api/axiosInstance';
-import { startGoogleOAuth } from '../../platform';
+import { isNativePlatform, startGoogleOAuth } from '../../platform';
 import GoogleSignInButton from '../../components/auth/GoogleSignInButton';
 
 export default function LoginPage() {
@@ -157,8 +157,8 @@ export default function LoginPage() {
         onClick={handleGoogleLogin}
       />
 
-      {/* Shortcut Akun Demo */}
-      {import.meta.env.DEV && (
+      {/* Shortcut Akun Demo (hanya tampil di Web, tidak di aplikasi native Android/iOS) */}
+      {!isNativePlatform() && (
         <div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-slate-50 p-3.5 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">
         <div className="flex items-center justify-between">
           <span className="font-bold text-slate-800 dark:text-white">Akun Demo Cepat</span>
